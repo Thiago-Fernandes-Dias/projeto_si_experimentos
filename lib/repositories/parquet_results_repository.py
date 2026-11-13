@@ -5,7 +5,6 @@ from datetime import datetime
 from typing import Any
 
 import pandas as pd
-from pyspark.sql import SparkSession
 
 from lib.experiment_results import ExperimentResults
 from lib.repositories.results_repository import ResultsRepository

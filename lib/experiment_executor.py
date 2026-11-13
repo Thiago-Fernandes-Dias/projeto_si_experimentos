@@ -1,3 +1,4 @@
+import os
 from typing import Callable
 
 from lib.datasets.cmu_dataset import CMUDataset
@@ -14,11 +15,13 @@ class ExperimentExecutor:
         self._runner_factory = runner_factory
 
     def execute(self) -> None:
-        cmu = CMUDataset(CMU_PATH, cmu_split)
-        cmu_runner = self._runner_factory(cmu)
-        cmu_runner.add_name_suffix("CMU")
-        cmu_runner.exec()
-        keyrecs = KeyrecsDataset(KEYRECS_PATH, keyrecs_split)
-        keyrecs_runner = self._runner_factory(keyrecs)
-        keyrecs_runner.add_name_suffix("Keyrecs")
-        keyrecs_runner.exec()
+        if os.path.exists(CMU_PATH):
+            cmu = CMUDataset(CMU_PATH, cmu_split)
+            cmu_runner = self._runner_factory(cmu)
+            cmu_runner.add_name_suffix("CMU")
+            cmu_runner.exec()
+        if os.path.exists(KEYRECS_PATH):
+            keyrecs = KeyrecsDataset(KEYRECS_PATH, keyrecs_split)
+            keyrecs_runner = self._runner_factory(keyrecs)
+            keyrecs_runner.add_name_suffix("Keyrecs")
+            keyrecs_runner.exec()

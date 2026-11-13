@@ -88,6 +88,14 @@ def exp_name_to_key(exp_name: str) -> str:
         return "SVM"
     elif "Magalhães" in exp_name:
         return "ST"
+    elif "Hocquet" in exp_name or "Mhenni" in exp_name:
+        return "HOCQUET"
+    elif "Self-Detector" in exp_name or "SelfDet" in exp_name:
+        return "SELFDET"
+    elif "Manhattan" in exp_name:
+        return "MANHATTAN"
+    elif "KNN" in exp_name:
+        return "KNN"
     return "unknown"
 
 
