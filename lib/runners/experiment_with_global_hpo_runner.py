@@ -19,7 +19,7 @@ class ExperimentWithGlobalHPORunner(ExperimentRunner):
 
     def __init__(self, dataset: Dataset, estimator_factory: Callable[[int], BaseEstimator],
                  params_grid: list[dict[str, Any]], exp_name: str, results_repo: ResultsRepository,
-                 use_impostor_samples: bool, seeds_range: list[int] | None) -> None:
+                 use_impostor_samples: bool, seeds_range: list[int] | None = None) -> None:
         super().__init__(dataset=dataset, exp_name=exp_name, use_impostor_samples=use_impostor_samples,
                          results_repo=results_repo, seeds_range=seeds_range)
         self._estimator_factory = estimator_factory
@@ -53,7 +53,5 @@ class ExperimentWithGlobalHPORunner(ExperimentRunner):
 
             self._results_repository.add_predictions_frame(predictions_frame=pred_frame,
                                                            seed=seed, exp_name=self._exp_name, date=start_time)
-
-        self._results_repository.add_hp(self._one_class_estimators_hp_map, exp_name=self._exp_name, date=start_time)
 
         self._log_experiment_completion(start_time)

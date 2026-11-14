@@ -17,7 +17,7 @@ class ExperimentWithUserHPORunner(ExperimentRunner):
 
     def __init__(self, dataset: Dataset, estimator_factory: Callable[[int], BaseEstimator],
                  params_grid: list[dict[str, Any]], exp_name: str, results_repo: ResultsRepository,
-                 use_impostor_samples: bool, seeds_range: list[int] | None) -> None:
+                 use_impostor_samples: bool, seeds_range: list[int] | None = None) -> None:
         super().__init__(dataset=dataset, exp_name=exp_name, use_impostor_samples=use_impostor_samples,
                          results_repo=results_repo, seeds_range=seeds_range)
         self._estimator_factory = estimator_factory

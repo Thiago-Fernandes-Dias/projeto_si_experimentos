@@ -48,12 +48,12 @@ for exp in experiments:
     if "global" in exp:
         if "CMU" in exp:
             global_hp_cmu[exp_name_to_key(exp)] = result
-        else:
+        elif "Keyrecs" in exp:
             global_hp_keyrecs[exp_name_to_key(exp)] = result
-    else:
+    elif "usuário" in exp or "user" in exp:
         if "CMU" in exp:
             user_hp_cmu[exp_name_to_key(exp)] = result
-        else:
+        elif "Keyrecs" in exp:
             user_hp_keyrecs[exp_name_to_key(exp)] = result
 
 cmu_table = generate_hp_comparison_table(global_hp_cmu, user_hp_cmu)

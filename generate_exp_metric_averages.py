@@ -12,7 +12,9 @@ exp_average_bacc = {}
 exp_average_frr = {}
 exp_average_far = {}
 
-for exp in os.listdir(results_dir):
+for exp in sorted(os.listdir(results_dir)):
+    if not os.path.isdir(os.path.join(results_dir, exp)):
+        continue
     exp_results = repo.read_results(exp)
     if exp_results is None or len(exp_results.model_predictions_per_seed) == 0:
         continue

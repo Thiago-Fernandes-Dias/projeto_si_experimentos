@@ -74,16 +74,16 @@ class ExperimentRunner(ABC):
         x_test = pd.concat([self._X_genuine_test[uk], self._X_impostors_test[uk]])
         y_test = self._y_genuine_test[uk] + self._y_impostors_test[uk]
         for (_, x), y in zip(x_test.iterrows(), y_test):
-            x_filtered = pd.DataFrame([x.drop(labels=self._dataset.get_drop_columns())])
+            x_filtered = pd.DataFrame([x.drop(labels=self._dataset.get_drop_columns()).astype(float)])
             pred = UserModelPrediction(
-                user_id=uk,
-                expected=y,
-                predicted=estimator.predict(x_filtered)[0].item(),
-                session=x[self._dataset.get_session_key_name()],
-                repetition=x[self._dataset.get_repetition_key_name()],
+                user_id=str(uk),
+                expected=int(y),
+                predicted=int(estimator.predict(x_filtered)[0]),
+                session=int(x[self._dataset.get_session_key_name()]),
+                repetition=int(x[self._dataset.get_repetition_key_name()]),
             )
             pred_dict = pred.to_dict()
-            pred_dict['seed'] = seed
+            pred_dict['seed'] = int(seed)
             pred_frame = pd.Series(pred_dict)
             pred_frames.append(pred_frame)
         return pred_frames
