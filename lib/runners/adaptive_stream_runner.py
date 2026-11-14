@@ -10,18 +10,22 @@ from lib.datasets.dataset import Dataset
 from lib.repositories.results_repository import ResultsRepository
 from lib.runners.experiment_runner import ExperimentRunner
 from lib.user_model_prediction import UserModelPrediction
-from lib.utils import GENUINE_LABEL, IMPOSTOR_LABEL
+from lib.utils import GENUINE_LABEL, IMPOSTOR_LABEL, interleave_preserving_chronology
 
 
 class AdaptiveStreamRunner(ExperimentRunner):
-    """Runner that evaluates keystroke models in a sequential data stream context (Pisani et al., 2015).
+    """Runner that evaluates keystroke models in a sequential data stream context
+    (Pisani et al., 2015; Pisani, 2024).
 
     Test queries arrive sequentially in chronological order. When a query is predicted
-    as GENUINE_LABEL, the estimator is adapted online (semi-supervised concept drift adaptation).
+    as GENUINE_LABEL and satisfies the inclusion threshold (double thresholding),
+    the estimator is adapted online using only accepted genuine candidates.
     """
 
     _estimator_factory: Callable[[int], BaseEstimator]
     _impostor_ratio: float
+    _threshold_method: str | None
+    _dynamic_threshold: bool
 
     def __init__(
         self,
@@ -30,6 +34,8 @@ class AdaptiveStreamRunner(ExperimentRunner):
         exp_name: str,
         results_repo: ResultsRepository,
         impostor_ratio: float = 0.3,
+        threshold_method: str | None = None,
+        dynamic_threshold: bool = False,
         seeds_range: list[int] | None = None,
     ) -> None:
         super().__init__(
@@ -41,6 +47,8 @@ class AdaptiveStreamRunner(ExperimentRunner):
         )
         self._estimator_factory = estimator_factory
         self._impostor_ratio = impostor_ratio
+        self._threshold_method = threshold_method
+        self._dynamic_threshold = dynamic_threshold
         self.logger = logging.getLogger(__name__)
 
     def exec(self) -> None:
@@ -63,7 +71,6 @@ class AdaptiveStreamRunner(ExperimentRunner):
         self._dataset.set_seed(seed)
         rng = np.random.default_rng(seed)
 
-        # Record estimator parameters
         base_estimator = self._estimator_factory(seed)
         self._results_repository.add_hp(
             hp=base_estimator.get_params(),
@@ -72,15 +79,21 @@ class AdaptiveStreamRunner(ExperimentRunner):
             seed=seed,
         )
 
+        session_col = self._dataset.get_session_key_name()
+        rep_col = self._dataset.get_repetition_key_name()
+        user_col = self._dataset.user_key_name()
+
         for uk in self._dataset.user_keys():
             estimator = self._estimator_factory(seed)
             x_training, y_training = self._get_user_training_vectors(uk)
             clean_training = x_training.drop(columns=self._dataset.get_drop_columns())
             estimator.fit(clean_training, y_training)
 
-            # Build chronological test stream: genuine test queries + interleaved impostors
+            if self._threshold_method is not None and hasattr(estimator, "calibrate_threshold"):
+                estimator.calibrate_threshold(method=self._threshold_method)
+
             genuine_test = self._X_genuine_test[uk].sort_values(
-                [self._dataset.get_session_key_name(), self._dataset.get_repetition_key_name()],
+                [session_col, rep_col],
                 kind="stable",
             )
             impostor_test = self._X_impostors_test[uk]
@@ -89,33 +102,48 @@ class AdaptiveStreamRunner(ExperimentRunner):
             target_impostors = int(round(self._impostor_ratio / (1.0 - self._impostor_ratio) * total_genuine))
             target_impostors = min(target_impostors, len(impostor_test))
 
-            sampled_impostors = impostor_test.sample(n=target_impostors, random_state=seed)
+            sampled_impostors = impostor_test.sample(n=target_impostors, random_state=seed).sort_values(
+                [user_col, session_col, rep_col],
+                kind="stable",
+            )
 
-            # Assign labels
             genuine_test_labeled = genuine_test.copy()
             genuine_test_labeled["_label"] = GENUINE_LABEL
             sampled_impostors_labeled = sampled_impostors.copy()
             sampled_impostors_labeled["_label"] = IMPOSTOR_LABEL
 
-            combined = pd.concat([genuine_test_labeled, sampled_impostors_labeled])
-            # Interleave randomly while preserving relative order
-            shuffled_stream = combined.sample(frac=1.0, random_state=seed)
+            chronological_stream = interleave_preserving_chronology(
+                genuine_df=genuine_test_labeled,
+                impostor_df=sampled_impostors_labeled,
+                rng=rng,
+            )
 
-            for _, row in shuffled_stream.iterrows():
+            for _, row in chronological_stream.iterrows():
                 expected_label = int(row["_label"])
-                row_features = pd.DataFrame([row.drop(labels=self._dataset.get_drop_columns() + ["_label"])])
+                row_features = pd.DataFrame([row.drop(labels=self._dataset.get_drop_columns() + ["_label"]).astype(float)])
                 predicted_label = int(estimator.predict(row_features)[0])
 
-                # If accepted as genuine, adapt model
                 if predicted_label == GENUINE_LABEL and hasattr(estimator, "adapt"):
-                    estimator.adapt(row_features)
+                    can_include = (
+                        estimator.should_include_sample(row_features)
+                        if hasattr(estimator, "should_include_sample")
+                        else True
+                    )
+                    if can_include:
+                        estimator.adapt(row_features)
+                        if (
+                            self._dynamic_threshold
+                            and self._threshold_method is not None
+                            and hasattr(estimator, "calibrate_threshold")
+                        ):
+                            estimator.calibrate_threshold(method=self._threshold_method)
 
                 pred = UserModelPrediction(
                     user_id=uk,
                     expected=expected_label,
                     predicted=predicted_label,
-                    session=int(row[self._dataset.get_session_key_name()]),
-                    repetition=int(row[self._dataset.get_repetition_key_name()]),
+                    session=int(row[session_col]),
+                    repetition=int(row[rep_col]),
                 )
                 pred_dict = pred.to_dict()
                 pred_dict["seed"] = seed

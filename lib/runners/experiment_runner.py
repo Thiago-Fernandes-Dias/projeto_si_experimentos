@@ -41,7 +41,7 @@ class ExperimentRunner(ABC):
         self._X_impostors_test = {}
         self._y_impostors_test = {}
         self._one_class_estimators_hp_map = {}
-        self._seeds_range = seeds_range if seeds_range is not None else default_seeds_range
+        self._seeds_range = seeds_range if seeds_range is not None else list(default_seeds_range)
 
         self._set_vectors_and_true_labels()
         self._dataset.add_seed_change_cb(self._set_vectors_and_true_labels)

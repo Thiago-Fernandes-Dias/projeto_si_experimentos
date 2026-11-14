@@ -19,7 +19,11 @@ class ParquetResultsRepository(ResultsRepository):
         results_dir = f"results/{exp_name}/{date.strftime('%Y-%m-%d_%H-%M-%S')}/predictions"
         create_dir_if_not_exists(results_dir)
         predictions_file_path = f"{results_dir}/predictions_{seed}.parquet"
-        predictions_frame.to_parquet(predictions_file_path, index=True, engine='fastparquet')
+        try:
+            predictions_frame.to_parquet(predictions_file_path, index=True, engine='fastparquet')
+        except ImportError:
+            predictions_file_path = f"{results_dir}/predictions_{seed}.pickle"
+            predictions_frame.to_pickle(predictions_file_path)
         self.logger.info(f"Experiment \"{exp_name}\" predictions with seed {seed} saved on {predictions_file_path}.")
 
     def add_hp(self, hp: dict[str, Any], exp_name: str, date: datetime, seed: int = 0) -> None:
@@ -47,6 +51,9 @@ class ParquetResultsRepository(ResultsRepository):
             for file in os.listdir(predictions_dir):
                 if file.endswith(".parquet"):
                     predictions_df = pd.read_parquet(os.path.join(predictions_dir, file), engine='fastparquet')
+                    model_predictions_per_seed.append(predictions_df)
+                elif file.endswith(".pickle"):
+                    predictions_df = pd.read_pickle(os.path.join(predictions_dir, file))
                     model_predictions_per_seed.append(predictions_df)
             hp_per_seed = []
             hps_dir = f"{file_path}/hp"

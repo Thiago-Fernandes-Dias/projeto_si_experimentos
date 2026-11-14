@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 from typing import Callable, TypeVar
 
+import numpy as np
 import pandas as pd
 
 T = TypeVar('T')
@@ -119,6 +120,42 @@ def keyrecs_default_split(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]
 
 def keyrecs_test_split(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     return df[(df['session'] == 1) & (df['repetition'] <= 5)], df[(df['session'] == 2) & (df['repetition'] <= 5)]
+
+
+def interleave_preserving_chronology(
+    genuine_df: pd.DataFrame,
+    impostor_df: pd.DataFrame,
+    rng: np.random.Generator,
+) -> pd.DataFrame:
+    """Interleaves genuine and impostor rows at random positions while strictly
+    preserving the internal chronological sequence of each group.
+    """
+    genuine_count = len(genuine_df)
+    impostor_count = len(impostor_df)
+    total_count = genuine_count + impostor_count
+    if total_count == 0:
+        return pd.DataFrame()
+    if impostor_count == 0:
+        return genuine_df.reset_index(drop=True)
+    if genuine_count == 0:
+        return impostor_df.reset_index(drop=True)
+
+    genuine_positions = set(rng.choice(total_count, size=genuine_count, replace=False).tolist())
+    genuine_rows = [row for _, row in genuine_df.iterrows()]
+    impostor_rows = [row for _, row in impostor_df.iterrows()]
+
+    genuine_idx = 0
+    impostor_idx = 0
+    ordered_rows: list[pd.Series] = []
+    for pos in range(total_count):
+        if pos in genuine_positions:
+            ordered_rows.append(genuine_rows[genuine_idx])
+            genuine_idx += 1
+        else:
+            ordered_rows.append(impostor_rows[impostor_idx])
+            impostor_idx += 1
+
+    return pd.DataFrame(ordered_rows).reset_index(drop=True)
 
 
 default_seeds_range = range(0, 5)
