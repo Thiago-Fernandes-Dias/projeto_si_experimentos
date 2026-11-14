@@ -72,7 +72,7 @@ O objetivo do projeto é avaliar e comparar o desempenho de diferentes classific
 6. **Modelos One-Class Sugeridos (Baseados em Instâncias & MAD)**
    * `scaled_manhattan.py`: Baseline estático do Scaled Manhattan com Desvio Absoluto Médio (MAD).
    * `adaptive_suggested.py`: Execução em *data stream* adaptativo para:
-     * *Scaled Manhattan*: Estático vs. *Sliding Window*.
+     * *Scaled Manhattan*: Estático (`none`), *Sliding Window* (`sliding`) e *Growing Window* (`growing`).
      * *k-NN Instance Score*: Estático vs. *Sliding Window*.
 
 ---
@@ -92,6 +92,7 @@ Baseado em **Magalhães et al. (2005)** e estendido com a configuração de limi
   $$\min(\mu_i, md_i) \cdot \left(0.95 - \frac{\sigma_i}{\mu_i}\right) \le d_i \le \max(\mu_i, md_i) \cdot \left(1.05 + \frac{\sigma_i}{\mu_i}\right)$$
 * **Cálculo do Score**: Atributos acertados somam $1.0$ ponto na primeira posição ou quando o atributo anterior falhou, e $1.5$ pontos quando o atributo anterior também acertou (premiando estabilidade rítmica consecutiva). O score final é normalizado em $[0, 1]$:
   $$\text{Score}(d) = \frac{\text{soma}}{1 + 1.5 \cdot (n - 1)}$$
+  em que o divisor é o valor máximo para a soma.
 * **Adaptação e Calibração de Limiar (`Pisani, 2024`)**:
   * Suporta estratégias de janela `none` (estático), `sliding` (FIFO mantendo o tamanho inicial da galeria) e `growing` (acumulativa).
   * O método `calibrate_threshold()` avalia os scores $S_j$ de todas as amostras da galeria $G_j$ contra a referência atual $\text{ref}_j$ e define o limiar do usuário por:
@@ -133,7 +134,7 @@ Implementa o algoritmo imunológico de **Seleção Positiva (*Self-Detector*)** 
 Baseado no detector de anomalias campeão do benchmark de **Killourhy & Maxion (2009)**:
 * Calcula o vetor médio $\mu$ e o Desvio Absoluto Médio ($\text{MAD}_i = \frac{1}{|G|} \sum_{x \in G} |x_i - \mu_i|$) na galeria genuína:
   $$d(x, \text{ref}) = \frac{1}{n} \sum_{i=1}^n \frac{|x_i - \mu_i|}{\text{MAD}_i}$$
-* Quando `sliding_window_size` é definido, mantém uma janela deslizante das últimas amostras aceitas que satisfazem `inclusion_threshold`.
+* Suporta as estratégias de janela `window_strategy="none"` (estático), `window_strategy="sliding"` (janela deslizante FIFO de tamanho `sliding_window_size`) e `window_strategy="growing"` (janela crescente que acumula todas as amostras aceitas e recalcula $\mu$ e $\text{MAD}$ sobre todo o histórico), além de duplo limiar (`inclusion_threshold`).
 
 #### 1.6. `KNNInstanceAlg` (`lib/estimators/knn_instance_alg.py`)
 Detector One-Class baseado em instâncias que padroniza os atributos pelo Z-score da galeria atual e calcula a distância euclidiana média aos $k$ vizinhos mais próximos, suportando janela deslizante e duplo limiar.
@@ -202,12 +203,13 @@ pip install -r requirements.txt
 pip install pytest
 ```
 
-### Download dos Dados do CMU
+### Download dos Dados (CMU e KeyRecs)
 
-Para baixar o arquivo `datasets/cmu/dataset.csv`:
+Os scripts de experimento baixam ambos os datasets automaticamente caso não estejam presentes localmente, mas você também pode baixá-los manualmente (`datasets/cmu/dataset.csv` e `datasets/keyrecs/dataset.csv`):
 
 ```bash
 python download_cmu_dataset.py
+python download_keyrecs_dataset.py
 ```
 
 ---
