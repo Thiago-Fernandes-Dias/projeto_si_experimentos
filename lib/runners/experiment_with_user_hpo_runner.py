@@ -5,6 +5,7 @@ from typing import Callable, Any
 import pandas as pd
 from sklearn.base import BaseEstimator
 from lib.datasets.dataset import Dataset
+from lib.logging_config import experiment_log_context
 from lib.repositories.results_repository import ResultsRepository
 from lib.runners.experiment_runner import ExperimentRunner
 from lib.user_hp_tuning import UserHPTuning
@@ -26,29 +27,64 @@ class ExperimentWithUserHPORunner(ExperimentRunner):
 
     def exec(self) -> None:
         start_time = datetime.now()
+        seeds_to_run = list(self._seeds_range)
+        total_seeds = len(seeds_to_run)
+        ordered_users = self._ordered_user_keys()
+        total_users = len(ordered_users)
 
-        self.logger.info(f"Starting {self._exp_name} at {start_time}")
+        with experiment_log_context(self._exp_name, start_time):
+            self._log_experiment_start(start_time, total_seeds=total_seeds)
 
-        for seed in self._seeds_range:
-            pred_series = list[pd.Series]()
+            for seed_idx, seed in enumerate(seeds_to_run, start=1):
+                seed_start_time = datetime.now()
+                self._log_seed_start(seed=seed, seed_idx=seed_idx, total_seeds=total_seeds)
+                pred_series = list[pd.Series]()
 
-            self._dataset.set_seed(seed)
+                self._dataset.set_seed(seed)
 
-            user_hp_tuning = UserHPTuning(dataset=self._dataset, estimator_factory=lambda: self._estimator_factory(seed),
-                                          parameter_grid=self._params_grid,
-                                          use_impostor_samples=self._use_impostor_samples, seed=seed)
-            user_best_params_map = user_hp_tuning.search()
-            self._results_repository.add_hp(hp=user_best_params_map, exp_name=self._exp_name, date=start_time, seed=seed)
+                user_hp_tuning = UserHPTuning(
+                    dataset=self._dataset,
+                    estimator_factory=lambda: self._estimator_factory(seed),
+                    parameter_grid=self._params_grid,
+                    use_impostor_samples=self._use_impostor_samples,
+                    seed=seed,
+                )
+                user_best_params_map = user_hp_tuning.search()
+                self._results_repository.add_hp(
+                    hp=user_best_params_map,
+                    exp_name=self._exp_name,
+                    date=start_time,
+                    seed=seed,
+                )
 
-            for uk in self._dataset.user_keys():
-                x_training, y_training = self._get_user_training_vectors(uk)
-                estimator = self._estimator_factory(seed).set_params(**user_best_params_map[uk])
-                estimator.fit(x_training.drop(columns=self._dataset.get_drop_columns()), y_training)
-                pred_series += self._test_user_model(estimator=estimator, uk=uk, seed=seed)
+                for user_idx, uk in enumerate(ordered_users, start=1):
+                    user_start_time = datetime.now()
+                    x_training, y_training = self._get_user_training_vectors(uk)
+                    estimator = self._estimator_factory(seed).set_params(**user_best_params_map[uk])
+                    estimator.fit(x_training.drop(columns=self._dataset.get_drop_columns()), y_training)
+                    user_preds = self._test_user_model(estimator=estimator, uk=uk, seed=seed)
+                    pred_series += user_preds
+                    self._log_user_completion(
+                        uk=uk,
+                        user_idx=user_idx,
+                        total_users=total_users,
+                        seed=seed,
+                        user_start_time=user_start_time,
+                        predictions_count=len(user_preds),
+                    )
 
-            pred_frame = pd.DataFrame(pred_series)
-            self._results_repository.add_predictions_frame(predictions_frame=pred_frame,
-                                                           seed=seed, exp_name=self._exp_name,
-                                                           date=start_time)
+                pred_frame = pd.DataFrame(pred_series)
+                self._results_repository.add_predictions_frame(
+                    predictions_frame=pred_frame,
+                    seed=seed,
+                    exp_name=self._exp_name,
+                    date=start_time,
+                )
+                self._log_seed_completion(
+                    seed=seed,
+                    seed_idx=seed_idx,
+                    total_seeds=total_seeds,
+                    seed_start_time=seed_start_time,
+                )
 
-        self._log_experiment_completion(start_time)
+            self._log_experiment_completion(start_time)

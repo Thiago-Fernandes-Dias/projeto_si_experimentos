@@ -280,3 +280,21 @@ python generate_hp_table.py
 python generate_st_params_hist.py
 ```
 Os arquivos consolidados serão salvos em `results/exp_metric_averages.csv` e no diretório `charts/`.
+
+---
+
+## Logs Estruturados e Configuração
+
+Todos os runners e algoritmos de tuning (`GlobalHPTuning` e `UserHPTuning`) emitem logs estruturados de progresso por experimento, por *seed* e por usuário com o tempo gasto (`elapsed_seconds`) em cada etapa:
+
+- **Console (`stdout`)**: texto legível no formato `timestamp | LEVEL | logger | mensagem | chave=valor ...`.
+- **Arquivo (`results/<exp_name>/<YYYY-MM-DD_HH-MM-SS>/execution.log`)**: formato **JSON Lines (`.jsonl`)** com os eventos `experiment_started`, `seed_started`, `hpo_global_*`, `hpo_user_*`, `user_completed`, `predictions_saved`, `hyperparameters_saved`, `seed_completed` e `experiment_completed`.
+
+O comportamento pode ser ajustado programaticamente via `configure_logging()` em `lib/logging_config.py` ou por variáveis de ambiente:
+
+| Variável de Ambiente | Padrão | Descrição |
+| :--- | :--- | :--- |
+| `SI_LOG_LEVEL` | `INFO` | Nível mínimo de log (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
+| `SI_LOG_TO_CONSOLE` | `1` | Habilita (`1`/`true`) ou desabilita (`0`/`false`) a saída legível no console. |
+| `SI_LOG_TO_FILE` | `1` | Habilita (`1`/`true`) ou desabilita (`0`/`false`) a gravação JSONL em arquivo. |
+| `SI_LOG_FILENAME` | `execution.log` | Nome do arquivo de log dentro de `results/<exp_name>/<timestamp>/`. |

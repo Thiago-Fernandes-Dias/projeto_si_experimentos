@@ -4,13 +4,14 @@ from sklearn.ensemble import RandomForestClassifier
 
 from lib.datasets.keyrecs_dataset import KeyrecsDataset
 from lib.hp_grids import rf_params_grid
+from lib.logging_config import configure_logging
 from lib.repositories.results_repository_factory import results_repository_factory
 from lib.runners.experiment_without_hpo_runner import ExperimentWithoutHPORunner
 from lib.utils import KEYRECS_PATH, keyrecs_default_split
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.NOTSET)
+    configure_logging()
 
     keyrecs = KeyrecsDataset(KEYRECS_PATH, keyrecs_default_split)
     keyrecs_runner = ExperimentWithoutHPORunner(

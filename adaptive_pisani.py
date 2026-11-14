@@ -4,12 +4,13 @@ from lib.estimators.self_detector_alg import SelfDetectorAlg
 from lib.estimators.m2005_adaptive_alg import AdaptiveM2005Alg
 from lib.estimators.m2005_alg import M2005Alg
 from lib.experiment_executor import ExperimentExecutor
+from lib.logging_config import configure_logging
 from lib.repositories.results_repository_factory import results_repository_factory
 from lib.runners.adaptive_stream_runner import AdaptiveStreamRunner
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_logging()
 
     repo = results_repository_factory()
 

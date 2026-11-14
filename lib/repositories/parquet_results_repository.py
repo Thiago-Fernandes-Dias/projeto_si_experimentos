@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 
 from lib.experiment_results import ExperimentResults
+from lib.logging_config import log_structured
 from lib.repositories.results_repository import ResultsRepository
 from lib.utils import create_dir_if_not_exists
 
@@ -24,7 +25,16 @@ class ParquetResultsRepository(ResultsRepository):
         except ImportError:
             predictions_file_path = f"{results_dir}/predictions_{seed}.pickle"
             predictions_frame.to_pickle(predictions_file_path)
-        self.logger.info(f"Experiment \"{exp_name}\" predictions with seed {seed} saved on {predictions_file_path}.")
+        log_structured(
+            self.logger,
+            logging.INFO,
+            f"Experiment '{exp_name}' predictions (seed={seed}) saved to {predictions_file_path}",
+            event="predictions_saved",
+            exp_name=exp_name,
+            seed=int(seed),
+            rows_count=len(predictions_frame),
+            file_path=predictions_file_path,
+        )
 
     def add_hp(self, hp: dict[str, Any], exp_name: str, date: datetime, seed: int = 0) -> None:
         results_dir = f"results/{exp_name}/{date.strftime('%Y-%m-%d_%H-%M-%S')}/hp"
@@ -32,7 +42,15 @@ class ParquetResultsRepository(ResultsRepository):
         hp_file_path = f"{results_dir}/hp_{seed}.pickle"
         with open(hp_file_path, "wb") as f:
             pickle.dump(hp, f, protocol=pickle.HIGHEST_PROTOCOL)
-        self.logger.info(f"\"{exp_name}\" hyperparameters with seed {seed} saved on {hp_file_path}.")
+        log_structured(
+            self.logger,
+            logging.INFO,
+            f"Experiment '{exp_name}' hyperparameters (seed={seed}) saved to {hp_file_path}",
+            event="hyperparameters_saved",
+            exp_name=exp_name,
+            seed=int(seed),
+            file_path=hp_file_path,
+        )
 
     def read_results(self, exp_name: str) -> ExperimentResults | None:
         exp_results_path = f"results/{exp_name}"

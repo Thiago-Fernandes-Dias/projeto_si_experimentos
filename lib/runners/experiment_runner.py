@@ -2,12 +2,14 @@ from abc import abstractmethod, ABC
 from datetime import datetime
 import logging
 
+from typing import Any
 import pandas as pd
 
 from lib.datasets.dataset import Dataset
+from lib.logging_config import experiment_log_context, log_structured
 from lib.repositories.results_repository import ResultsRepository
 from lib.user_model_prediction import UserModelPrediction
-from lib.utils import log_completion, default_seeds_range
+from lib.utils import default_seeds_range, sorted_nicely
 
 
 class ExperimentRunner(ABC):
@@ -88,5 +90,80 @@ class ExperimentRunner(ABC):
             pred_frames.append(pred_frame)
         return pred_frames
 
-    def _log_experiment_completion(self, start_time):
-        log_completion(logger=self.logger, msg=f"Experiment {self._exp_name} finished", start_time=start_time)
+    def _ordered_user_keys(self) -> list[str]:
+        return sorted_nicely([str(uk) for uk in self._dataset.user_keys()])
+
+    def _log_experiment_start(self, start_time: datetime, total_seeds: int | None = None) -> None:
+        seeds_count = total_seeds if total_seeds is not None else len(self._seeds_range)
+        total_users = len(self._dataset.user_keys())
+        log_structured(
+            self.logger,
+            logging.INFO,
+            f"Starting experiment '{self._exp_name}' ({self.__class__.__name__})",
+            event="experiment_started",
+            exp_name=self._exp_name,
+            runner=self.__class__.__name__,
+            total_seeds=seeds_count,
+            total_users=total_users,
+            started_at=start_time.isoformat(timespec="seconds"),
+        )
+
+    def _log_seed_start(self, seed: int, seed_idx: int, total_seeds: int) -> None:
+        log_structured(
+            self.logger,
+            logging.INFO,
+            f"[{self._exp_name}] Starting seed {seed} ({seed_idx}/{total_seeds})",
+            event="seed_started",
+            exp_name=self._exp_name,
+            seed=int(seed),
+            seed_progress=f"{seed_idx}/{total_seeds}",
+            total_users=len(self._dataset.user_keys()),
+        )
+
+    def _log_seed_completion(self, seed: int, seed_idx: int, total_seeds: int, seed_start_time: datetime) -> None:
+        elapsed = round((datetime.now() - seed_start_time).total_seconds(), 4)
+        log_structured(
+            self.logger,
+            logging.INFO,
+            f"[{self._exp_name}] Seed {seed} ({seed_idx}/{total_seeds}) finished in {elapsed:.4f}s",
+            event="seed_completed",
+            exp_name=self._exp_name,
+            seed=int(seed),
+            seed_progress=f"{seed_idx}/{total_seeds}",
+            elapsed_seconds=elapsed,
+        )
+
+    def _log_user_completion(
+        self,
+        uk: str,
+        user_idx: int,
+        total_users: int,
+        seed: int,
+        user_start_time: datetime,
+        **extra_fields: Any,
+    ) -> None:
+        elapsed = round((datetime.now() - user_start_time).total_seconds(), 4)
+        log_structured(
+            self.logger,
+            logging.INFO,
+            f"[{self._exp_name}] User {uk} ({user_idx}/{total_users}) completed in {elapsed:.4f}s",
+            event="user_completed",
+            exp_name=self._exp_name,
+            seed=int(seed),
+            user_id=str(uk),
+            user_progress=f"{user_idx}/{total_users}",
+            elapsed_seconds=elapsed,
+            **extra_fields,
+        )
+
+    def _log_experiment_completion(self, start_time: datetime) -> None:
+        elapsed = round((datetime.now() - start_time).total_seconds(), 4)
+        log_structured(
+            self.logger,
+            logging.INFO,
+            f"Experiment '{self._exp_name}' finished in {elapsed:.4f}s",
+            event="experiment_completed",
+            exp_name=self._exp_name,
+            runner=self.__class__.__name__,
+            elapsed_seconds=elapsed,
+        )

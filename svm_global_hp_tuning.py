@@ -5,12 +5,13 @@ from sklearn.svm import OneClassSVM
 
 from lib.experiment_executor import ExperimentExecutor
 from lib.hp_grids import one_class_svm_params_grid
+from lib.logging_config import configure_logging
 from lib.repositories.results_repository_factory import results_repository_factory
 from lib.runners.experiment_with_global_hpo_runner import ExperimentWithGlobalHPORunner
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.NOTSET)
+    configure_logging()
 
     executor = ExperimentExecutor(
         runner_factory=lambda ds: ExperimentWithGlobalHPORunner(

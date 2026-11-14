@@ -9,7 +9,8 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import KFold, ParameterGrid
 
 from lib.datasets.dataset import Dataset
-from lib.utils import create_labels, dict_values_average, log_completion, IMPOSTOR_LABEL, GENUINE_LABEL
+from lib.logging_config import log_structured
+from lib.utils import create_labels, dict_values_average, sorted_nicely, IMPOSTOR_LABEL, GENUINE_LABEL
 
 
 class GlobalHPTuning:
@@ -29,22 +30,56 @@ class GlobalHPTuning:
         self.logger = logging.getLogger(__name__)
 
     def search(self) -> dict[str, Any]:
-        self.logger.info(f"Starting global hpo search with seed {self._seed}")
         start_time = datetime.now()
+        grid = list(ParameterGrid(self._parameter_grid))
+        total_configs = len(grid)
+        log_structured(
+            self.logger,
+            logging.INFO,
+            f"Starting global HPO search (seed={self._seed}, configs={total_configs})",
+            event="hpo_global_started",
+            seed=self._seed,
+            total_configs=total_configs,
+        )
 
-        results = [self._evaluate_config(param_config) for param_config in ParameterGrid(self._parameter_grid)]
+        results: list[tuple[float, dict[str, Any]]] = []
+        for config_idx, param_config in enumerate(grid, start=1):
+            config_start = datetime.now()
+            bacc, cfg = self._evaluate_config(param_config)
+            results.append((bacc, cfg))
+            config_elapsed = round((datetime.now() - config_start).total_seconds(), 4)
+            log_structured(
+                self.logger,
+                logging.INFO,
+                f"Global HPO config {config_idx}/{total_configs} evaluated in {config_elapsed:.4f}s (bacc={bacc:.4f})",
+                event="hpo_global_config_evaluated",
+                seed=self._seed,
+                config_progress=f"{config_idx}/{total_configs}",
+                bacc=round(bacc, 6),
+                params=cfg,
+                elapsed_seconds=config_elapsed,
+            )
 
-        best_param_config = max(results, key=lambda item: item[0])[1]
-
-        log_completion(logger=self.logger, start_time=start_time,
-                       msg=f"Global hpo search with seed {self._seed} finished.")
+        best_bacc, best_param_config = max(results, key=lambda item: item[0])
+        elapsed = round((datetime.now() - start_time).total_seconds(), 4)
+        log_structured(
+            self.logger,
+            logging.INFO,
+            f"Global HPO search (seed={self._seed}) finished in {elapsed:.4f}s",
+            event="hpo_global_completed",
+            seed=self._seed,
+            best_bacc=round(best_bacc, 6),
+            best_params=best_param_config,
+            elapsed_seconds=elapsed,
+        )
 
         return best_param_config
 
     def _evaluate_config(self, param_config: dict[str, Any]) -> tuple[float, dict[str, Any]]:
         cv = KFold(n_splits=5, shuffle=True, random_state=self._seed)
         users_bacc_map: dict[str, float] = {}
-        for uk in self._dataset.user_keys():
+        ordered_users = sorted_nicely([str(uk) for uk in self._dataset.user_keys()])
+        for uk in ordered_users:
             user_baccs: list[float] = []
             x_genuine, y_genuine, x_impostor, y_impostor = \
                 self._dataset.two_class_training_set(uk)

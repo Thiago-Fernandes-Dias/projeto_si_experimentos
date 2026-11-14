@@ -4,12 +4,13 @@ import os
 from lib.estimators.m2005_alg import M2005Alg
 from lib.experiment_executor import ExperimentExecutor
 from lib.hp_grids import st_params_grid
+from lib.logging_config import configure_logging
 from lib.repositories.results_repository_factory import results_repository_factory
 from lib.runners.experiment_with_user_hpo_runner import ExperimentWithUserHPORunner
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.NOTSET)
+    configure_logging()
 
     name = str(os.path.basename(__file__).replace(".py", ""))
     executor = ExperimentExecutor(

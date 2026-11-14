@@ -9,7 +9,8 @@ from sklearn.metrics import accuracy_score
 from sklearn.model_selection import KFold, ParameterGrid
 
 from lib.datasets.dataset import Dataset
-from lib.utils import create_labels, log_completion, IMPOSTOR_LABEL, GENUINE_LABEL
+from lib.logging_config import log_structured
+from lib.utils import create_labels, sorted_nicely, IMPOSTOR_LABEL, GENUINE_LABEL
 
 
 class UserHPTuning:
@@ -29,16 +30,51 @@ class UserHPTuning:
         self.logger = logging.getLogger(__name__)
 
     def search(self) -> dict[str, Any]:
-        self.logger.info(f"Starting user hpo search with seed {self._seed}")
         start_time = datetime.now()
+        grid = list(ParameterGrid(self._parameter_grid))
+        ordered_users = sorted_nicely([str(uk) for uk in self._dataset.user_keys()])
+        total_users = len(ordered_users)
+
+        log_structured(
+            self.logger,
+            logging.INFO,
+            f"Starting user HPO search (seed={self._seed}, users={total_users}, configs={len(grid)})",
+            event="hpo_user_started",
+            seed=self._seed,
+            total_users=total_users,
+            total_configs=len(grid),
+        )
 
         user_best_param_config_map: dict[str, Any] = {}
-        for uk in self._dataset.user_keys():
-            evaluations = [self._evaluate_config_by_user(pc, uk) for pc in ParameterGrid(self._parameter_grid)]
-            user_best_param_config_map[uk] = max(evaluations, key=lambda item: item[0])[1]
+        for user_idx, uk in enumerate(ordered_users, start=1):
+            user_start_time = datetime.now()
+            evaluations = [self._evaluate_config_by_user(pc, uk) for pc in grid]
+            best_bacc, best_params = max(evaluations, key=lambda item: item[0])
+            user_best_param_config_map[uk] = best_params
+            user_elapsed = round((datetime.now() - user_start_time).total_seconds(), 4)
+            log_structured(
+                self.logger,
+                logging.INFO,
+                f"User HPO for {uk} ({user_idx}/{total_users}) completed in {user_elapsed:.4f}s (bacc={best_bacc:.4f})",
+                event="hpo_user_completed",
+                seed=self._seed,
+                user_id=str(uk),
+                user_progress=f"{user_idx}/{total_users}",
+                best_bacc=round(best_bacc, 6),
+                best_params=best_params,
+                elapsed_seconds=user_elapsed,
+            )
 
-        log_completion(logger=self.logger, start_time=start_time,
-                       msg=f"User hpo search with seed {self._seed} finished.")
+        elapsed = round((datetime.now() - start_time).total_seconds(), 4)
+        log_structured(
+            self.logger,
+            logging.INFO,
+            f"User HPO search (seed={self._seed}) finished in {elapsed:.4f}s",
+            event="hpo_user_search_completed",
+            seed=self._seed,
+            total_users=total_users,
+            elapsed_seconds=elapsed,
+        )
 
         return user_best_param_config_map
 

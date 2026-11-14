@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import pandas as pd
@@ -196,6 +197,24 @@ def test_standardized_results_format_across_all_runners(mock_dataset_csv):
         for user_metrics in metrics_per_user.values():
             assert 0.0 <= user_metrics.far <= 1.0
             assert 0.0 <= user_metrics.frr <= 1.0
+
+        exp_runs = sorted(os.listdir(os.path.join("results", exp_name)), reverse=True)
+        log_file = os.path.join("results", exp_name, exp_runs[0], "execution.log")
+        assert os.path.isfile(log_file), f"Missing execution.log for {exp_name}"
+        with open(log_file, "r", encoding="utf-8") as fh:
+            records = [json.loads(line) for line in fh if line.strip()]
+        events = [r.get("event") for r in records]
+        for required_event in (
+            "experiment_started",
+            "seed_started",
+            "user_completed",
+            "seed_completed",
+            "experiment_completed",
+        ):
+            assert required_event in events, f"Missing {required_event} in {exp_name} execution.log"
+        user_records = [r for r in records if r.get("event") == "user_completed"]
+        assert len(user_records) == len(dataset.user_keys())
+        assert all("elapsed_seconds" in r for r in user_records)
 
     assert repo.read_results("Test_Std_GlobalHPO").hp_per_seed[0] != {}
     assert len(repo.read_results("Test_Std_UserHPO").hp_per_seed[0]) == len(dataset.user_keys())

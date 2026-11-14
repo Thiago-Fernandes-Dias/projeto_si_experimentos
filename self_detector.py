@@ -2,12 +2,13 @@ import logging
 
 from lib.estimators.self_detector_alg import SelfDetectorAlg
 from lib.experiment_executor import ExperimentExecutor
+from lib.logging_config import configure_logging
 from lib.repositories.results_repository_factory import results_repository_factory
 from lib.runners.experiment_without_hpo_runner import ExperimentWithoutHPORunner
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_logging()
 
     executor = ExperimentExecutor(
         runner_factory=lambda ds: ExperimentWithoutHPORunner(

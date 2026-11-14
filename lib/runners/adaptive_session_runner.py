@@ -7,6 +7,7 @@ import pandas as pd
 from sklearn.base import BaseEstimator
 
 from lib.datasets.dataset import Dataset
+from lib.logging_config import experiment_log_context
 from lib.repositories.results_repository import ResultsRepository
 from lib.runners.experiment_runner import ExperimentRunner
 from lib.user_model_prediction import UserModelPrediction
@@ -62,18 +63,30 @@ class AdaptiveSessionRunner(ExperimentRunner):
 
     def exec(self) -> None:
         start_time = datetime.now()
-        self.logger.info(f"Starting Adaptive Session Experiment: {self._exp_name} at {start_time}")
+        seeds_to_run = list(self._seeds_range)
+        total_seeds = len(seeds_to_run)
 
-        for seed in self._seeds_range:
-            pred_df = pd.DataFrame(self._train_and_predict_sessions(seed=seed, start_time=start_time))
-            self._results_repository.add_predictions_frame(
-                predictions_frame=pred_df,
-                date=start_time,
-                exp_name=self._exp_name,
-                seed=seed,
-            )
+        with experiment_log_context(self._exp_name, start_time):
+            self._log_experiment_start(start_time, total_seeds=total_seeds)
 
-        self._log_experiment_completion(start_time)
+            for seed_idx, seed in enumerate(seeds_to_run, start=1):
+                seed_start_time = datetime.now()
+                self._log_seed_start(seed=seed, seed_idx=seed_idx, total_seeds=total_seeds)
+                pred_df = pd.DataFrame(self._train_and_predict_sessions(seed=seed, start_time=start_time))
+                self._results_repository.add_predictions_frame(
+                    predictions_frame=pred_df,
+                    date=start_time,
+                    exp_name=self._exp_name,
+                    seed=seed,
+                )
+                self._log_seed_completion(
+                    seed=seed,
+                    seed_idx=seed_idx,
+                    total_seeds=total_seeds,
+                    seed_start_time=seed_start_time,
+                )
+
+            self._log_experiment_completion(start_time)
 
     def _train_and_predict_sessions(self, start_time: datetime, seed: int = 0) -> list[pd.Series]:
         pred_frames: list[pd.Series] = []
@@ -92,7 +105,11 @@ class AdaptiveSessionRunner(ExperimentRunner):
         rep_col = self._dataset.get_repetition_key_name()
         user_col = self._dataset.user_key_name()
 
-        for uk in self._dataset.user_keys():
+        ordered_users = self._ordered_user_keys()
+        total_users = len(ordered_users)
+
+        for user_idx, uk in enumerate(ordered_users, start=1):
+            user_start_time = datetime.now()
             estimator = self._estimator_factory(seed)
             x_training, y_training = self._get_user_training_vectors(uk)
             clean_training = x_training.drop(columns=self._dataset.get_drop_columns())
@@ -110,6 +127,9 @@ class AdaptiveSessionRunner(ExperimentRunner):
             genuine_test = self._X_genuine_test[uk]
             test_sessions = sorted(genuine_test[session_col].unique())
             impostor_test = self._X_impostors_test[uk]
+
+            user_predictions_count = 0
+            user_adapted_samples = 0
 
             for session_num in test_sessions:
                 session_genuine = genuine_test[genuine_test[session_col] == session_num].sort_values(
@@ -158,10 +178,12 @@ class AdaptiveSessionRunner(ExperimentRunner):
                     pred_dict = pred.to_dict()
                     pred_dict["seed"] = seed
                     pred_frames.append(pd.Series(pred_dict))
+                    user_predictions_count += 1
 
                 if accepted_queries_for_update and hasattr(estimator, "adapt") and self._window_strategy != "none":
                     batch_accepted = pd.concat(accepted_queries_for_update)
                     estimator.adapt(batch_accepted, window=self._window_strategy)
+                    user_adapted_samples += len(accepted_queries_for_update)
 
                 if self._threshold_policy == "variable" and hasattr(estimator, "calculate_variable_threshold_decrement"):
                     decrement = estimator.calculate_variable_threshold_decrement()
@@ -169,5 +191,16 @@ class AdaptiveSessionRunner(ExperimentRunner):
                     estimator.threshold = new_threshold
                     if self._inclusion_threshold_ratio is not None and hasattr(estimator, "inclusion_threshold"):
                         estimator.inclusion_threshold = new_threshold * self._inclusion_threshold_ratio
+
+            self._log_user_completion(
+                uk=uk,
+                user_idx=user_idx,
+                total_users=total_users,
+                seed=seed,
+                user_start_time=user_start_time,
+                sessions_evaluated=len(test_sessions),
+                predictions_count=user_predictions_count,
+                adapted_samples=user_adapted_samples,
+            )
 
         return pred_frames

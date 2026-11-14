@@ -3,12 +3,13 @@ import logging
 from lib.estimators.scaled_manhattan_alg import ScaledManhattanAlg
 from lib.estimators.knn_instance_alg import KNNInstanceAlg
 from lib.experiment_executor import ExperimentExecutor
+from lib.logging_config import configure_logging
 from lib.repositories.results_repository_factory import results_repository_factory
 from lib.runners.adaptive_stream_runner import AdaptiveStreamRunner
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_logging()
 
     repo = results_repository_factory()
 
