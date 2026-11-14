@@ -17,7 +17,6 @@ def main() -> None:
             estimator_factory=lambda s: HocquetStatisticalAlg(threshold=0.5),
             exp_name="Hocquet",
             use_impostor_samples=False,
-            seeds_range=[0],
         ),
     )
     executor.execute()

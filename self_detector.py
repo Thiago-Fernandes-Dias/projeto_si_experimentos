@@ -17,7 +17,6 @@ def main() -> None:
             estimator_factory=lambda s: SelfDetectorAlg(radius=0.02, strategy="none"),
             exp_name="Self-Detector",
             use_impostor_samples=False,
-            seeds_range=[0],
         ),
     )
     executor.execute()

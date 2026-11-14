@@ -33,7 +33,6 @@ def main() -> None:
                 window_strategy=ws,
                 threshold_policy=tp,
                 minimum_threshold=0.05,
-                seeds_range=[0],
             )
         )
         executor.execute()

@@ -17,7 +17,6 @@ def main() -> None:
             estimator_factory=lambda s: ScaledManhattanAlg(threshold=2.5),
             exp_name="Scaled Manhattan",
             use_impostor_samples=False,
-            seeds_range=[0],
         ),
     )
     executor.execute()

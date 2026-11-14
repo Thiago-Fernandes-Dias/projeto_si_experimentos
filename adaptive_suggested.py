@@ -33,7 +33,6 @@ def main() -> None:
                 exp_name=title,
                 results_repo=repo,
                 impostor_ratio=0.3,
-                seeds_range=[0],
             )
         )
         executor.execute()
