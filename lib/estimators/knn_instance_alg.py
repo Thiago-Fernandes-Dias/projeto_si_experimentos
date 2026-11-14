@@ -20,14 +20,22 @@ class KNNInstanceAlg(BaseEstimator):
 
     k: int
     threshold: float
+    inclusion_threshold: float | None
     sliding_window_size: int | None
     _samples: deque[pd.Series]
-    _mean: pd.Series
-    _std: pd.Series
+    _mean: pd.Series | None
+    _std: pd.Series | None
 
-    def __init__(self, k: int = 1, threshold: float = 1.5, sliding_window_size: int | None = None):
+    def __init__(
+        self,
+        k: int = 1,
+        threshold: float = 1.5,
+        sliding_window_size: int | None = None,
+        inclusion_threshold: float | None = None,
+    ):
         self.k = k
         self.threshold = threshold
+        self.inclusion_threshold = inclusion_threshold
         self.sliding_window_size = sliding_window_size
         self._samples = deque(maxlen=sliding_window_size)
         self._mean = None
@@ -37,12 +45,14 @@ class KNNInstanceAlg(BaseEstimator):
         return {
             "k": self.k,
             "threshold": self.threshold,
+            "inclusion_threshold": self.inclusion_threshold,
             "sliding_window_size": self.sliding_window_size,
         }
 
     def set_params(self, **params) -> Self:
         self.k = params.get("k", self.k)
         self.threshold = params.get("threshold", self.threshold)
+        self.inclusion_threshold = params.get("inclusion_threshold", self.inclusion_threshold)
         self.sliding_window_size = params.get("sliding_window_size", self.sliding_window_size)
         return self
 
@@ -69,6 +79,12 @@ class KNNInstanceAlg(BaseEstimator):
         k_dists = np.partition(dists, effective_k - 1)[:effective_k]
         return float(np.mean(k_dists))
 
+    def should_include_sample(self, x: pd.Series | pd.DataFrame) -> bool:
+        effective_limit = self.inclusion_threshold if self.inclusion_threshold is not None else self.threshold
+        if isinstance(x, pd.Series):
+            return self.calculate_distance(x) <= effective_limit
+        return all(self.calculate_distance(row) <= effective_limit for _, row in x.iterrows())
+
     def predict_vec(self, x: pd.Series) -> int:
         dist = self.calculate_distance(x)
         return GENUINE_LABEL if dist <= self.threshold else IMPOSTOR_LABEL
@@ -77,6 +93,8 @@ class KNNInstanceAlg(BaseEstimator):
         return np.array([self.predict_vec(row) for _, row in x.iterrows()])
 
     def adapt(self, x: pd.Series | pd.DataFrame) -> None:
+        if self.sliding_window_size is None:
+            return
         if isinstance(x, pd.Series):
             self._samples.append(x.copy())
         else:

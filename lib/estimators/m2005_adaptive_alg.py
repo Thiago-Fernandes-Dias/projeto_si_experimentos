@@ -30,7 +30,7 @@ class _WelfordOnlineStats:
     def get_metrics(self) -> dict[str, DigraphsMetrics]:
         metrics = {}
         for col, mean_val in self.mean.items():
-            variance = self.squared_dev[col] / self.count if self.count > 1 else 0.0
+            variance = self.squared_dev[col] / (self.count - 1) if self.count > 1 else 0.0
             std_val = float(np.sqrt(variance))
             metrics[str(col)] = DigraphsMetrics(mean_val, std_val, mean_val)
         return metrics
@@ -46,11 +46,19 @@ class AdaptiveM2005Alg(BaseEstimator):
     """
 
     threshold: float
+    inclusion_threshold: float | None
     variant: str
-    window_size: int
+    window_size: int | None
 
-    def __init__(self, threshold: float = 0.7, variant: str = "idb", window_size: int = 10):
+    def __init__(
+        self,
+        threshold: float = 0.7,
+        variant: str = "idb",
+        window_size: int | None = None,
+        inclusion_threshold: float | None = None,
+    ):
         self.threshold = threshold
+        self.inclusion_threshold = inclusion_threshold
         self.variant = variant
         self.window_size = window_size
         self._sliding_gallery = deque(maxlen=window_size)
@@ -62,18 +70,21 @@ class AdaptiveM2005Alg(BaseEstimator):
     def get_params(self, deep: bool = True) -> dict[str, object]:
         return {
             "threshold": self.threshold,
+            "inclusion_threshold": self.inclusion_threshold,
             "variant": self.variant,
             "window_size": self.window_size,
         }
 
     def set_params(self, **params) -> Self:
         self.threshold = params.get("threshold", self.threshold)
+        self.inclusion_threshold = params.get("inclusion_threshold", self.inclusion_threshold)
         self.variant = params.get("variant", self.variant)
         self.window_size = params.get("window_size", self.window_size)
         return self
 
     def fit(self, x: pd.DataFrame, y: list[int] | None = None) -> Self:
-        self._sliding_gallery = deque([row.copy() for _, row in x.iterrows()], maxlen=self.window_size)
+        effective_maxlen = self.window_size if self.window_size is not None else max(len(x), 1)
+        self._sliding_gallery = deque([row.copy() for _, row in x.iterrows()], maxlen=effective_maxlen)
         self._sliding_estimator.fit(pd.DataFrame(list(self._sliding_gallery)))
 
         if self.variant == "idb":
@@ -85,30 +96,16 @@ class AdaptiveM2005Alg(BaseEstimator):
 
         return self
 
-    def _calc_score(self, estimator: M2005Alg, x: pd.Series) -> float:
-        hits = []
-        for digraph_name, value in x.items():
-            digraph_metrics = estimator._digraphs_metrics.get(str(digraph_name))
-            if digraph_metrics is None:
-                continue
-            av = digraph_metrics.average if digraph_metrics.average != 0 else 1.0
-            std = digraph_metrics.std_dev
-            md = digraph_metrics.median
-            res = (min(av, md) * (0.95 - std / av)) <= value <= (max(av, md) * (1.05 + std / av))
-            hits.append(res)
-        length = len(hits)
-        if length == 0:
-            return 0.0
-        s = 1.0 if hits[0] else 0.0
-        for i in range(1, length):
-            if hits[i]:
-                s += 1.5 if hits[i - 1] else 1.0
-        return float(s / ((length - 1) * 1.5 + 1.0))
-
     def predict_score(self, x: pd.Series) -> float:
-        score_sliding = self._calc_score(self._sliding_estimator, x)
-        score_growing = self._calc_score(self._growing_estimator, x)
+        score_sliding = self._sliding_estimator.calculate_score(x)
+        score_growing = self._growing_estimator.calculate_score(x)
         return (score_sliding + score_growing) / 2.0
+
+    def should_include_sample(self, x: pd.Series | pd.DataFrame) -> bool:
+        effective_threshold = self.inclusion_threshold if self.inclusion_threshold is not None else self.threshold
+        if isinstance(x, pd.Series):
+            return self.predict_score(x) >= effective_threshold
+        return all(self.predict_score(row) >= effective_threshold for _, row in x.iterrows())
 
     def predict_vec(self, x: pd.Series) -> int:
         score = self.predict_score(x)
