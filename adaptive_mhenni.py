@@ -19,8 +19,10 @@ def main() -> None:
     configurations = [
         ("Mhenni_None_Fixed", "none", "fixed", 0.5),
         ("Mhenni_Sliding_Fixed", "sliding", "fixed", 0.5),
+        ("Mhenni_Sliding_Individual", "sliding", "individual", 0.5),
         ("Mhenni_Sliding_Variable", "sliding", "variable", 0.5),
         ("Mhenni_Growing_Fixed", "growing", "fixed", 0.5),
+        ("Mhenni_Growing_Individual", "growing", "individual", 0.5),
         ("Mhenni_Growing_Variable", "growing", "variable", 0.5),
     ]
 

@@ -62,7 +62,7 @@ def test_adaptive_stream_runner(mock_dataset_csv):
 
     runner = AdaptiveStreamRunner(
         dataset=dataset,
-        estimator_factory=lambda s: SelfDetectorAlg(radius=0.1, strategy="sliding"),
+        estimator_factory=lambda s: SelfDetectorAlg(radius=0.1, inclusion_radius=0.05, strategy="sliding"),
         exp_name="Test_SelfDet_Stream",
         results_repo=repo,
         impostor_ratio=0.3,
@@ -74,6 +74,12 @@ def test_adaptive_stream_runner(mock_dataset_csv):
     assert results is not None
     assert len(results.model_predictions_per_seed) > 0
 
+    pred_df = results.model_predictions_per_seed[0]
+    for user_id in dataset.user_keys():
+        user_genuine_preds = pred_df[(pred_df["user_id"] == user_id) & (pred_df["expected"] == GENUINE_LABEL)]
+        chronological_keys = list(zip(user_genuine_preds["session"], user_genuine_preds["repetition"]))
+        assert chronological_keys == sorted(chronological_keys)
+
 
 def test_adaptive_session_runner(mock_dataset_csv):
     repo = results_repository_factory()
@@ -81,7 +87,7 @@ def test_adaptive_session_runner(mock_dataset_csv):
 
     runner = AdaptiveSessionRunner(
         dataset=dataset,
-        estimator_factory=lambda s: HocquetStatisticalAlg(threshold=0.5),
+        estimator_factory=lambda s: HocquetStatisticalAlg(threshold=0.5, inclusion_threshold=0.35),
         exp_name="Test_Hocquet_Session",
         results_repo=repo,
         window_strategy="sliding",

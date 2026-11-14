@@ -68,6 +68,11 @@ def test_scaled_manhattan_alg():
     model.adapt(df.mean())
     assert len(model._samples) == 10
 
+    static_model = ScaledManhattanAlg(threshold=2.0, sliding_window_size=None)
+    static_model.fit(df)
+    static_model.adapt(df.mean())
+    assert len(static_model._samples) == 10
+
 
 def test_knn_instance_alg():
     df = create_sample_df(n_samples=10)
@@ -80,20 +85,35 @@ def test_knn_instance_alg():
     model.adapt(df.iloc[0])
     assert len(model._samples) == 10
 
+    static_model = KNNInstanceAlg(k=1, threshold=1.0, sliding_window_size=None)
+    static_model.fit(df)
+    static_model.adapt(df.iloc[0])
+    assert len(static_model._samples) == 10
+
 
 def test_m2005_alg():
     df = create_sample_df(n_samples=10)
-    model = M2005Alg(threshold=0.7)
+    model = M2005Alg(threshold=0.7, inclusion_threshold=0.85, window_strategy="sliding")
     model.fit(df)
     mean_vec = df.mean()
     assert model.predict_vec(mean_vec) == GENUINE_LABEL
+    assert model.should_include_sample(mean_vec) is True
     assert M2005 is M2005Alg
+
+    calibrated_t = model.calibrate_threshold(method="min_non_outlier")
+    assert 0.0 < calibrated_t <= 1.0
 
 
 def test_adaptive_m2005_alg():
     df = create_sample_df(n_samples=15)
     model = AdaptiveM2005Alg(threshold=0.7, variant="idb", window_size=10)
     model.fit(df)
+
+    # Verify Welford online sample std matches pandas sample std (ddof=1)
+    for col in df.columns:
+        expected_std = float(df[col].std(ddof=1))
+        actual_std = model._growing_estimator._digraphs_metrics[col].std_dev
+        assert np.isclose(actual_std, expected_std, atol=1e-9)
 
     mean_vec = df.mean()
     assert model.predict_vec(mean_vec) == GENUINE_LABEL
