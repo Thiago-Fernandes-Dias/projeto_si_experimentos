@@ -73,6 +73,11 @@ def test_scaled_manhattan_alg():
     static_model.adapt(df.mean())
     assert len(static_model._samples) == 10
 
+    growing_model = ScaledManhattanAlg(threshold=2.0, window_strategy="growing")
+    growing_model.fit(df)
+    growing_model.adapt(df.mean())
+    assert len(growing_model._samples) == 11
+
 
 def test_knn_instance_alg():
     df = create_sample_df(n_samples=10)

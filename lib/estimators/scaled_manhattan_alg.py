@@ -23,6 +23,7 @@ class ScaledManhattanAlg(BaseEstimator):
     threshold: float
     inclusion_threshold: float | None
     sliding_window_size: int | None
+    window_strategy: str
     _center: pd.Series | None
     _mad: pd.Series | None
     _samples: deque[pd.Series]
@@ -32,11 +33,16 @@ class ScaledManhattanAlg(BaseEstimator):
         threshold: float = 2.0,
         sliding_window_size: int | None = None,
         inclusion_threshold: float | None = None,
+        window_strategy: str | None = None,
     ):
         self.threshold = threshold
         self.inclusion_threshold = inclusion_threshold
         self.sliding_window_size = sliding_window_size
-        self._samples = deque(maxlen=sliding_window_size)
+        if window_strategy is not None:
+            self.window_strategy = window_strategy
+        else:
+            self.window_strategy = "sliding" if sliding_window_size is not None else "none"
+        self._samples = deque(maxlen=sliding_window_size if self.window_strategy == "sliding" else None)
         self._center = None
         self._mad = None
 
@@ -45,16 +51,25 @@ class ScaledManhattanAlg(BaseEstimator):
             "threshold": self.threshold,
             "inclusion_threshold": self.inclusion_threshold,
             "sliding_window_size": self.sliding_window_size,
+            "window_strategy": self.window_strategy,
         }
 
     def set_params(self, **params) -> Self:
         self.threshold = params.get("threshold", self.threshold)
         self.inclusion_threshold = params.get("inclusion_threshold", self.inclusion_threshold)
         self.sliding_window_size = params.get("sliding_window_size", self.sliding_window_size)
+        if "window_strategy" in params and params["window_strategy"] is not None:
+            self.window_strategy = params["window_strategy"]
+        elif "sliding_window_size" in params:
+            self.window_strategy = "sliding" if self.sliding_window_size is not None else "none"
         return self
 
     def fit(self, x: pd.DataFrame, y: list[int] | None = None) -> Self:
-        self._samples = deque([row.copy() for _, row in x.iterrows()], maxlen=self.sliding_window_size)
+        if self.window_strategy == "sliding":
+            maxlen = self.sliding_window_size if self.sliding_window_size is not None else max(len(x), 1)
+        else:
+            maxlen = None
+        self._samples = deque([row.copy() for _, row in x.iterrows()], maxlen=maxlen)
         self._recompute()
         return self
 
@@ -103,12 +118,22 @@ class ScaledManhattanAlg(BaseEstimator):
     def predict(self, x: pd.DataFrame) -> np.ndarray:
         return np.array([self.predict_vec(row) for _, row in x.iterrows()])
 
-    def adapt(self, x: pd.Series | pd.DataFrame) -> None:
-        if self.sliding_window_size is None:
+    def adapt(self, x: pd.Series | pd.DataFrame, window: str | None = None) -> None:
+        strategy = window if window is not None else self.window_strategy
+        if strategy == "none":
             return
+
         if isinstance(x, pd.Series):
-            self._samples.append(x.copy())
+            new_rows = [x.copy()]
         else:
-            for _, row in x.iterrows():
-                self._samples.append(row.copy())
+            new_rows = [row.copy() for _, row in x.iterrows()]
+
+        if strategy == "growing" and self._samples.maxlen is not None:
+            self._samples = deque(self._samples, maxlen=None)
+        elif strategy == "sliding" and self._samples.maxlen is None:
+            maxlen = self.sliding_window_size if self.sliding_window_size is not None else max(len(self._samples), 1)
+            self._samples = deque(self._samples, maxlen=maxlen)
+
+        for row in new_rows:
+            self._samples.append(row)
         self._recompute()
