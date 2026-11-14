@@ -6,14 +6,10 @@ from lib.estimators.m2005_alg import M2005Alg
 from lib.experiment_executor import ExperimentExecutor
 from lib.repositories.results_repository_factory import results_repository_factory
 from lib.runners.adaptive_stream_runner import AdaptiveStreamRunner
-from download_cmu_dataset import download_cmu_if_missing
-from download_keyrecs_dataset import download_keyrecs_if_missing
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    download_cmu_if_missing()
-    download_keyrecs_if_missing()
 
     repo = results_repository_factory()
 

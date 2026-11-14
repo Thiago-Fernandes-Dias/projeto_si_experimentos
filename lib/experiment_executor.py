@@ -1,8 +1,7 @@
 import os
 from typing import Callable
 
-from download_cmu_dataset import download_cmu_if_missing
-from download_keyrecs_dataset import download_keyrecs_if_missing
+from download_datasets import download_datasets_if_missing
 from lib.datasets.cmu_dataset import CMUDataset
 from lib.datasets.dataset import Dataset
 from lib.datasets.keyrecs_dataset import KeyrecsDataset
@@ -17,8 +16,7 @@ class ExperimentExecutor:
         self._runner_factory = runner_factory
 
     def execute(self) -> None:
-        download_cmu_if_missing()
-        download_keyrecs_if_missing()
+        download_datasets_if_missing()
         if os.path.exists(CMU_PATH):
             cmu = CMUDataset(CMU_PATH, cmu_split)
             cmu_runner = self._runner_factory(cmu)

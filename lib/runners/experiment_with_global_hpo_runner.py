@@ -9,7 +9,6 @@ from lib.datasets.dataset import Dataset
 from lib.global_hp_tuning import GlobalHPTuning
 from lib.repositories.results_repository import ResultsRepository
 from lib.runners.experiment_runner import ExperimentRunner
-from lib.utils import default_seeds_range
 
 
 class ExperimentWithGlobalHPORunner(ExperimentRunner):

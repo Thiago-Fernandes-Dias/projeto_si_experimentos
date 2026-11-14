@@ -208,8 +208,7 @@ pip install pytest
 Os scripts de experimento baixam ambos os datasets automaticamente caso não estejam presentes localmente, mas você também pode baixá-los manualmente (`datasets/cmu/dataset.csv` e `datasets/keyrecs/dataset.csv`):
 
 ```bash
-python download_cmu_dataset.py
-python download_keyrecs_dataset.py
+python download_datasets.py
 ```
 
 ---
