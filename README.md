@@ -1,8 +1,28 @@
 # Experimentos de Biometria de Digitação (IC 2024 & Adaptação Biométrica)
 
-Este repositório contém a infraestrutura de experimentos, algoritmos e scripts de análise para pesquisa em Biometria de Digitação (*Keystroke Dynamics*), integrando tanto modelos estáticos com otimização de hiperparâmetros (HPO) quanto abordagens adaptativas baseadas na literatura recente para tratamento de envelhecimento de template (*concept drift*).
+Este repositório contém a infraestrutura de experimentos, algoritmos e scripts de análise para pesquisa em Biometria de Digitação (*Keystroke Dynamics*), combinando modelos estatísticos estáticos e abordagens adaptativas baseadas na literatura recente para tratamento de envelhecimento de template (*concept drift*).
 
-O objetivo do projeto é avaliar e comparar o desempenho de diferentes classificadores, estratégias de otimização de hiperparâmetros e mecanismos de adaptação contínua na identificação e autenticação de usuários baseada em padrões de digitação.
+O objetivo do projeto é avaliar e comparar o desempenho de diferentes classificadores e mecanismos de adaptação contínua na identificação e autenticação de usuários baseada em padrões de digitação. Os experimentos usam hiperparâmetros fixos definidos nos próprios scripts; a infraestrutura de otimização de hiperparâmetros (HPO), os scripts de Random Forest e SVM e os runners de HPO foram removidos.
+
+---
+
+## Algoritmo de Produção Escolhido: `M2005_IDB`
+
+Os 52 experimentos consolidados em `results/exp_metric_averages.csv` embasaram a escolha do **`M2005_IDB`** (*Improved Double Parallel*, Pisani et al., IJCNN 2015) como classificador de produção da `projeto_si_ml_api`. O algoritmo combina:
+
+- **Submodelo deslizante:** fila FIFO de 50 amostras genuínas recentes, com média, mediana e desvio-padrão por dígrafo.
+- **Submodelo crescente incremental:** média e desvio-padrão online pelo algoritmo de Welford, em memória constante `O(1)` sobre todo o histórico genuíno.
+- **Escore final:** média aritmética dos dois submodelos, comparada a um limiar calibrado por usuário (`min` ou `min_non_outlier`, com teto `0.7`).
+- **Treinamento One-Class:** apenas amostras genuínas; `IMPOSTOR` e `UNCERTAIN` não entram na adaptação.
+
+| Algoritmo | BACC CMU | FRR CMU | FAR CMU | BACC KeyRecs | FRR KeyRecs | FAR KeyRecs | BACC médio |
+|---|---|---|---|---|---|---|---|
+| **`M2005_IDB`** | **0.8909** | **15.24%** | **6.58%** | **0.7980** | **9.03%** | **31.37%** | **0.8445** |
+| `M2005_DB` | 0.8907 | 14.64% | 7.22% | 0.7822 | 8.68% | 34.87% | 0.8365 |
+| `SelfDet_Sliding` | 0.8655 | 23.41% | 3.49% | 0.8068 | 33.25% | 5.38% | 0.8362 |
+| `M2005_Pisani2024_Sliding_Dynamic` | 0.8659 | 7.84% | 18.98% | 0.7219 | 5.28% | 50.33% | 0.7939 |
+
+O `M2005_IDB` lidera em BACC médio (`0.8445`), G-mean (`0.8400`) e equilíbrio `|FRR - FAR|` (`0.1550`), reduzindo a FAR do CMU em aproximadamente 3× em relação ao `M2005_Pisani2024_Sliding_Dynamic`.
 
 ---
 
@@ -18,62 +38,47 @@ O objetivo do projeto é avaliar e comparar o desempenho de diferentes classific
     * `scaled_manhattan_alg.py`: Classificador *Scaled Manhattan* com Desvio Absoluto Médio (MAD), campeão do benchmark de Killourhy & Maxion (2009).
     * `knn_instance_alg.py`: Detector baseado em instâncias k-NN / 1-NN com padronização e pontuação contínua de anomalia.
   * `lib/runners/`: Executores de experimentos para cada estratégia:
-    * `experiment_without_hpo_runner.py`: Execução padrão sem tuning.
-    * `experiment_with_global_hpo_runner.py`: Otimização global de hiperparâmetros.
-    * `experiment_with_user_hpo_runner.py`: Otimização de hiperparâmetros por usuário.
+    * `experiment_without_hpo_runner.py`: Execução estática dos baselines, com hiperparâmetros fixos.
     * `adaptive_stream_runner.py`: Avaliação sequencial em fluxo de dados (*data stream*, Pisani et al., 2015) com adaptação online a amostras aceitas como genuínas.
     * `adaptive_session_runner.py`: Avaliação em sessões discretas com atualização tardia (*delayed template update*) e limiares fixo/individual/variável (Mhenni et al., 2016).
   * `lib/repositories/`: Repositório de persistência de predições e parâmetros em formato Parquet (`results/`).
-  * `lib/hp_grids.py`: Grades de hiperparâmetros para os modelos.
+  * `lib/logging_config.py`: Configuração de logs legíveis no console e JSONL por execução (`results/<exp_name>/<timestamp>/execution.log`).
   * `lib/utils.py`: Funções utilitárias, divisões de treino/teste e constantes globais.
+* `tests/`: Testes unitários dos estimadores e dos runners adaptativos (`pytest`).
 * `datasets/`: Contém os dados brutos e links para os benchmarks:
   * `datasets/cmu/`: CMU Keystroke Benchmark Dataset (`DSL-StrongPasswordData.csv`).
   * `datasets/keyrecs/`: KeyRecs Dataset (`fixed-text.csv`).
-* `download_cmu_dataset.py`: Utilitário para download automático do dataset CMU caso não esteja presente localmente.
+* `references/`: PDFs dos artigos de referência usados na implementação dos estimadores e protocolos adaptativos.
+* `download_datasets.py`: Utilitário único para download automático dos datasets CMU e KeyRecs caso não estejam presentes localmente.
 
 ---
 
 ## Algoritmos Avaliados
 
-### 1. Modelos Clássicos & HPO
-1. **Random Forest (RF)**
-   * `rf.py`: Execução padrão sem otimização.
-   * `rf_global_hp_tuning.py`: Otimização global de hiperparâmetros.
-   * `rf_user_hp_tuning.py`: Otimização de hiperparâmetros individual por usuário.
-   * `rf_keyrecs.py`: Execução específica para o dataset KeyRecs.
+### 1. Modelo Estatístico Melhorado / Magalhães (ST)
+* `st.py`: Execução do modelo M2005 baseline com hiperparâmetros fixos.
 
-2. **Support Vector Machine (SVM)**
-   * `svm.py`: Execução padrão One-Class SVM sem otimização.
-   * `svm_global_hp_tuning.py`: Otimização global de hiperparâmetros.
-   * `svm_user_hp_tuning.py`: Otimização de hiperparâmetros individual por usuário.
+### 2. Hocquet & Atualização de Limiar Adaptativo (Mhenni et al., 2016)
+* `hocquet.py`: Execução estática baseline do classificador de Hocquet et al. (2007).
+* `adaptive_mhenni.py`: Avaliação em sessões comparando:
+  * Janelas: *None* (estático), *Sliding Window* e *Growing Window*.
+  * Políticas de Limiar: *Fixed Threshold*, *Individual Threshold* e *Variable Threshold* ($T_{i+1} = \max(T_{min}, T_i - \exp(-\mu/\sigma))$).
 
-3. **Algoritmo Estatístico Melhorado / Magalhães (ST)**
-   * `st.py`: Execução do modelo M2005 baseline.
-   * `st_global_hp_tuning.py`: Otimização global dos parâmetros estatísticos.
-   * `st_user_hp_tuning.py`: Otimização dos parâmetros por usuário.
+### 3. Self-Detector e Adaptação em Fluxo de Dados (Pisani et al., 2015)
+* `self_detector.py`: Execução estática baseline do modelo imunológico de seleção positiva.
+* `adaptive_pisani.py`: Avaliação sequencial em *data stream* com 30% de ataques de impostores comparando:
+  * *Self-Detector (No adapt)*: Linha de base estática.
+  * *Self-Detector (Sliding)*: Janela deslizante substituindo o detector mais antigo.
+  * *Self-Detector (Usage Control R)*: Remoção do detector menos utilizado com ociosidade esgotada.
+  * *Self-Detector (Usage Control 2)*: Eliminação proativa de todos os detectores não utilizados recentemente.
+  * *M2005 Double Parallel (DB)*: Fusão de modelo crescente com deslizante.
+  * *M2005 Improved Double Parallel (IDB)*: Modelo crescente com estatísticas incrementais de Welford ($O(1)$ de memória).
 
-### 2. Modelos Estatísticos e Adaptativos da Literatura Recente
-4. **Hocquet & Atualização de Limiar Adaptativo (Mhenni et al., 2016)**
-   * `hocquet.py`: Execução estática baseline do classificador de Hocquet et al. (2007).
-   * `adaptive_mhenni.py`: Avaliação em sessões comparando:
-     * Janelas: *None* (estático), *Sliding Window* e *Growing Window*.
-     * Políticas de Limiar: *Fixed Threshold*, *Individual Threshold* e *Variable Threshold* ($T_{i+1} = \max(T_{min}, T_i - \exp(-\mu/\sigma))$).
-
-5. **Self-Detector e Adaptação em Fluxo de Dados (Pisani et al., 2015)**
-   * `self_detector.py`: Execução estática baseline do modelo imunológico de seleção positiva.
-   * `adaptive_pisani.py`: Avaliação sequencial em *data stream* com 30% de ataques de impostores comparando:
-     * *Self-Detector (No adapt)*: Linha de base estática.
-     * *Self-Detector (Sliding)*: Janela deslizante substituindo o detector mais antigo.
-     * *Self-Detector (Usage Control R)*: Remoção do detector menos utilizado com ociosidade esgotada.
-     * *Self-Detector (Usage Control 2)*: Eliminação proativa de todos os detectores não utilizados recentemente.
-     * *M2005 Double Parallel (DB)*: Fusão de modelo crescente com deslizante.
-     * *M2005 Improved Double Parallel (IDB)*: Modelo crescente com estatísticas incrementais de Welford ($O(1)$ de memória).
-
-6. **Modelos One-Class Sugeridos (Baseados em Instâncias & MAD)**
-   * `scaled_manhattan.py`: Baseline estático do Scaled Manhattan com Desvio Absoluto Médio (MAD).
-   * `adaptive_suggested.py`: Execução em *data stream* adaptativo para:
-     * *Scaled Manhattan*: Estático (`none`), *Sliding Window* (`sliding`) e *Growing Window* (`growing`).
-     * *k-NN Instance Score*: Estático vs. *Sliding Window*.
+### 4. Modelos One-Class Sugeridos (Baseados em Instâncias & MAD)
+* `scaled_manhattan.py`: Baseline estático do Scaled Manhattan com Desvio Absoluto Médio (MAD).
+* `adaptive_suggested.py`: Execução em *data stream* adaptativo para:
+  * *Scaled Manhattan*: Estático (`none`), *Sliding Window* (`sliding`) e *Growing Window* (`growing`).
+  * *k-NN Instance Score*: Estático vs. *Sliding Window*.
 
 ---
 
@@ -146,12 +151,10 @@ Detector One-Class baseado em instâncias que padroniza os atributos pelo Z-scor
 #### 2.1. `ExperimentRunner` (`lib/runners/experiment_runner.py`)
 Classe base abstrata responsável por:
 * Particionar o dataset por usuário em conjuntos de treino (`_X_genuine_training`, `_X_impostor_training`) e teste (`_X_genuine_test`, `_X_impostors_test`).
-* Controlar se o estimador recebe apenas amostras da classe genuína (`use_impostor_samples=False`, padrão One-Class) ou amostras de duas classes (`use_impostor_samples=True`, usado pelo Random Forest clássico).
+* Controlar se o estimador recebe apenas amostras da classe genuína (`use_impostor_samples=False`, padrão One-Class) ou também amostras de impostores (`use_impostor_samples=True`, opção disponível para estimadores supervisionados de duas classes).
 
-#### 2.2. Runners Estáticos e de HPO
+#### 2.2. Runner Estático
 * **`ExperimentWithoutHPORunner`** (`experiment_without_hpo_runner.py`): Treina um modelo fixo por usuário na primeira sessão e avalia todas as tentativas genuínas e de impostores nas sessões restantes sem atualizar o template.
-* **`ExperimentWithGlobalHPORunner`** (`experiment_with_global_hpo_runner.py`): Realiza busca em grade (*Grid Search*) para selecionar o conjunto de hiperparâmetros que maximiza a acurácia balanceada média global antes do teste.
-* **`ExperimentWithUserHPORunner`** (`experiment_with_user_hpo_runner.py`): Otimiza os hiperparâmetros individualmente para cada usuário.
 
 #### 2.3. `AdaptiveStreamRunner` (`lib/runners/adaptive_stream_runner.py`)
 Reproduz o protocolo de avaliação sequencial em **Fluxo de Dados (*Data Stream*)** de **Pisani et al. (2015)** e **Pisani (2024)**:
@@ -188,7 +191,8 @@ O projeto suporta dois datasets principais de dinâmica de digitação:
 ## Requisitos e Instalação
 
 ### Pré-requisitos
-* Python 3.10+
+* Python 3.12 (recomendado; os scripts são compatíveis com Python 3.10+)
+* `pip` e, opcionalmente, um ambiente virtual (`venv` ou `uv`)
 
 ### Instalação das Dependências
 
@@ -202,6 +206,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 pip install pytest
 ```
+
+> O `requirements.txt` foi congelado em ambiente Windows e inclui `pywin32`; em Linux/macOS, remova ou ignore essa linha caso o `pip` não encontre uma wheel compatível.
 
 ### Download dos Dados (CMU e KeyRecs)
 
@@ -221,48 +227,37 @@ python download_datasets.py
 # Experimento de Mhenni et al. (2016): Sessões com janelas deslizantes/crescentes e limiar adaptativo
 python adaptive_mhenni.py
 
-# Experimento de Pisani et al. (2015): Fluxo contínuo (Data Stream) com Self-Detector e M2005IDB
+# Experimento de Pisani et al. (2015): Fluxo contínuo (Data Stream) com Self-Detector e M2005_IDB
 python adaptive_pisani.py
 
 # Experimentos com os modelos One-Class sugeridos (Scaled Manhattan e k-NN)
 python adaptive_suggested.py
 ```
 
-### 2. Executando Baselines Individuais Sem HPO
+> Os scripts adaptativos usam, por padrão, 5 execuções com sementes `0..4` (`default_seeds_range` em `lib/utils.py`). Cada execução grava predições e hiperparâmetros no histórico Parquet de `results/<exp_name>/<timestamp>/`, além do log JSONL de execução.
+
+### 2. Executando Baselines Individuais
 
 ```bash
 python st.py               # Modelo Magalhães / M2005
 python hocquet.py          # Modelo Hocquet
 python self_detector.py    # Modelo Self-Detector
 python scaled_manhattan.py # Modelo Scaled Manhattan
-python svm.py              # One-Class SVM
-python rf.py               # Random Forest
 ```
 
-### 3. Executando Otimização de Hiperparâmetros (HPO)
-
-```bash
-python st_global_hp_tuning.py    # Tuning global do modelo estatístico
-python st_user_hp_tuning.py      # Tuning individual do modelo estatístico
-python rf_global_hp_tuning.py    # Tuning global de Random Forest
-python rf_user_hp_tuning.py      # Tuning individual de Random Forest
-python svm_global_hp_tuning.py   # Tuning global de SVM
-python svm_user_hp_tuning.py     # Tuning individual de SVM
-```
-
-### 4. Executando Todos os Experimentos Tradicionais
+### 3. Executando Todos os Baselines Estáticos
 
 ```bash
 python execute_all.py
 ```
 
-### 5. Executando Testes Automatizados
+### 4. Executando Testes Automatizados
 
 ```bash
 pytest -v
 ```
 
-### 6. Gerando Análises, Médias e Gráficos
+### 5. Gerando Análises, Médias e Gráficos
 
 Após a execução dos experimentos, os resultados em formato Parquet são gravados no diretório `results/`. Para processar e consolidar as métricas:
 
@@ -272,12 +267,6 @@ python generate_exp_metric_averages.py
 
 # Gerar gráficos comparativos de desempenho
 python generate_graphs.py
-
-# Gerar tabela com os hiperparâmetros selecionados
-python generate_hp_table.py
-
-# Gerar histogramas dos parâmetros do modelo estatístico
-python generate_st_params_hist.py
 ```
 Os arquivos consolidados serão salvos em `results/exp_metric_averages.csv` e no diretório `charts/`.
 
@@ -285,10 +274,10 @@ Os arquivos consolidados serão salvos em `results/exp_metric_averages.csv` e no
 
 ## Logs Estruturados e Configuração
 
-Todos os runners e algoritmos de tuning (`GlobalHPTuning` e `UserHPTuning`) emitem logs estruturados de progresso por experimento, por *seed* e por usuário com o tempo gasto (`elapsed_seconds`) em cada etapa:
+Todos os runners emitem logs estruturados de progresso por experimento, por *seed* e por usuário com o tempo gasto (`elapsed_seconds`) em cada etapa:
 
 - **Console (`stdout`)**: texto legível no formato `timestamp | LEVEL | logger | mensagem | chave=valor ...`.
-- **Arquivo (`results/<exp_name>/<YYYY-MM-DD_HH-MM-SS>/execution.log`)**: formato **JSON Lines (`.jsonl`)** com os eventos `experiment_started`, `seed_started`, `hpo_global_*`, `hpo_user_*`, `user_completed`, `predictions_saved`, `hyperparameters_saved`, `seed_completed` e `experiment_completed`.
+- **Arquivo (`results/<exp_name>/<YYYY-MM-DD_HH-MM-SS>/execution.log`)**: formato **JSON Lines (`.jsonl`)** com os eventos `experiment_started`, `seed_started`, `user_completed`, `predictions_saved`, `hyperparameters_saved`, `seed_completed` e `experiment_completed`.
 
 O comportamento pode ser ajustado programaticamente via `configure_logging()` em `lib/logging_config.py` ou por variáveis de ambiente:
 
@@ -298,3 +287,13 @@ O comportamento pode ser ajustado programaticamente via `configure_logging()` em
 | `SI_LOG_TO_CONSOLE` | `1` | Habilita (`1`/`true`) ou desabilita (`0`/`false`) a saída legível no console. |
 | `SI_LOG_TO_FILE` | `1` | Habilita (`1`/`true`) ou desabilita (`0`/`false`) a gravação JSONL em arquivo. |
 | `SI_LOG_FILENAME` | `execution.log` | Nome do arquivo de log dentro de `results/<exp_name>/<timestamp>/`. |
+
+---
+
+## Referências
+
+Os artigos usados na implementação estão em `references/`:
+
+- `A study on user-specific threshold configuration for keystroke dynamics in the context of adaptive biometric systems.pdf` (Pisani, 2024) — calibração de limiar `min`/`min_non_outlier` e variantes adaptativas.
+- `Adaptive approaches for keystroke dynamics.pdf` (Pisani et al., IJCNN 2015) — *Self-Detector*, *Double Parallel* (DB) e *Improved Double Parallel* (IDB).
+- `Keystroke Template Update with Adapted Thresholds.pdf` (Mhenni et al., 2016) — atualização tardia de template, janelas deslizantes/crescentes e limiar variável.
