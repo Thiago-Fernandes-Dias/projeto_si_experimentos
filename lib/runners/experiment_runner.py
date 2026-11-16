@@ -25,7 +25,6 @@ class ExperimentRunner(ABC):
     _y_genuine_test: dict[str, list[int]]
     _X_impostors_test: dict[str, pd.DataFrame]
     _y_impostors_test: dict[str, list[int]]
-    _one_class_estimators_hp_map: dict[str, list[dict[str, object]]]
     _seeds_range: list[int]
 
     def __init__(self, dataset: Dataset, results_repo: ResultsRepository, exp_name: str,
@@ -42,7 +41,6 @@ class ExperimentRunner(ABC):
         self._y_genuine_test = {}
         self._X_impostors_test = {}
         self._y_impostors_test = {}
-        self._one_class_estimators_hp_map = {}
         self._seeds_range = seeds_range if seeds_range is not None else list(default_seeds_range)
 
         self._set_vectors_and_true_labels()

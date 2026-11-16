@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 import pandas as pd
 import pytest
 
@@ -10,8 +9,6 @@ from lib.estimators.self_detector_alg import SelfDetectorAlg
 from lib.repositories.results_repository_factory import results_repository_factory
 from lib.runners.adaptive_session_runner import AdaptiveSessionRunner
 from lib.runners.adaptive_stream_runner import AdaptiveStreamRunner
-from lib.runners.experiment_with_global_hpo_runner import ExperimentWithGlobalHPORunner
-from lib.runners.experiment_with_user_hpo_runner import ExperimentWithUserHPORunner
 from lib.runners.experiment_without_hpo_runner import ExperimentWithoutHPORunner
 from lib.utils import GENUINE_LABEL, IMPOSTOR_LABEL
 
@@ -124,30 +121,6 @@ def test_standardized_results_format_across_all_runners(mock_dataset_csv):
             ),
         ),
         (
-            "Test_Std_GlobalHPO",
-            ExperimentWithGlobalHPORunner(
-                dataset=dataset,
-                estimator_factory=lambda s: HocquetStatisticalAlg(threshold=0.5),
-                params_grid=[{"threshold": [0.4, 0.6]}],
-                exp_name="Test_Std_GlobalHPO",
-                results_repo=repo,
-                use_impostor_samples=False,
-                seeds_range=[0],
-            ),
-        ),
-        (
-            "Test_Std_UserHPO",
-            ExperimentWithUserHPORunner(
-                dataset=dataset,
-                estimator_factory=lambda s: HocquetStatisticalAlg(threshold=0.5),
-                params_grid=[{"threshold": [0.4, 0.6]}],
-                exp_name="Test_Std_UserHPO",
-                results_repo=repo,
-                use_impostor_samples=False,
-                seeds_range=[0],
-            ),
-        ),
-        (
             "Test_Std_Stream",
             AdaptiveStreamRunner(
                 dataset=dataset,
@@ -215,6 +188,3 @@ def test_standardized_results_format_across_all_runners(mock_dataset_csv):
         user_records = [r for r in records if r.get("event") == "user_completed"]
         assert len(user_records) == len(dataset.user_keys())
         assert all("elapsed_seconds" in r for r in user_records)
-
-    assert repo.read_results("Test_Std_GlobalHPO").hp_per_seed[0] != {}
-    assert len(repo.read_results("Test_Std_UserHPO").hp_per_seed[0]) == len(dataset.user_keys())

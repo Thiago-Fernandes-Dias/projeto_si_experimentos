@@ -1,15 +1,15 @@
 import os
-import re
 
-directory = './'
+SCRIPTS = [
+    "st.py",
+    "hocquet.py",
+    "self_detector.py",
+    "scaled_manhattan.py",
+]
 
-cmds = []
-for filename in os.listdir(directory):
-    pattern = re.compile(r'(st|svm|rf)(_([a-z])+)+\.py')
-    if not pattern.match(filename):
-        continue
-    file_path = os.path.join(directory, filename)
-    if os.path.isfile(file_path):
-        cmds.append('python ' + file_path)
-cmd = ' && '.join(cmds)
-os.system(cmd)
+cmds = [
+    f"python {filename}"
+    for filename in SCRIPTS
+    if os.path.isfile(os.path.join("./", filename))
+]
+os.system(" && ".join(cmds))

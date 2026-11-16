@@ -31,14 +31,6 @@ def create_labels(df: pd.DataFrame, label: T) -> list[T]:
     return n_copies(label, data_frame_length(df))
 
 
-def float_range(start: float, end: float, step: float) -> list[float]:
-    result: list[float] = []
-    while start <= end:
-        result.append(start)
-        start += step
-    return result
-
-
 def select(iterable: list[T], f: Callable[[T], S]) -> list[S]:
     return [f(x) for x in iterable]
 
@@ -68,36 +60,9 @@ def lower_comp(a: float, b: float) -> int:
     return 1
 
 
-def dict_values_average(d: dict[T, float]) -> float:
-    summation = 0.0
-    length = 0
-    for _, value in d.items():
-        length += 1
-        summation += value
-    return summation / length
-
-
 def create_dir_if_not_exists(name: str):
     if not os.path.exists(name):
         os.makedirs(name)
-
-
-def exp_name_to_key(exp_name: str) -> str:
-    if "Random" in exp_name:
-        return "RF"
-    elif "SVM" in exp_name:
-        return "SVM"
-    elif "Magalhães" in exp_name:
-        return "ST"
-    elif "Hocquet" in exp_name or "Mhenni" in exp_name:
-        return "HOCQUET"
-    elif "Self-Detector" in exp_name or "SelfDet" in exp_name:
-        return "SELFDET"
-    elif "Manhattan" in exp_name:
-        return "MANHATTAN"
-    elif "KNN" in exp_name:
-        return "KNN"
-    return "unknown"
 
 
 def log_completion(start_time: datetime, msg: str, logger: logging.Logger) -> None:
@@ -163,7 +128,5 @@ cmu_split = cmu_default_split
 keyrecs_split = keyrecs_default_split
 IMPOSTOR_LABEL = -1
 GENUINE_LABEL = 1
-RANDOM_STATE = 42
-N_JOBS = -1
 CMU_PATH = "datasets/cmu/dataset.csv"
 KEYRECS_PATH = "datasets/keyrecs/dataset.csv"
