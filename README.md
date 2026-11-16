@@ -8,11 +8,12 @@ O objetivo do projeto é avaliar e comparar o desempenho de diferentes classific
 
 ## Algoritmo de Produção Escolhido: `M2005_IDB`
 
-Os 52 experimentos consolidados em `results/exp_metric_averages.csv` embasaram a escolha do **`M2005_IDB`** (*Improved Double Parallel*, Pisani et al., IJCNN 2015) como classificador de produção da `projeto_si_ml_api`. O algoritmo combina:
+Os resultados dos 52 experimentos consolidados localmente em `results/exp_metric_averages.csv` (gerado por `generate_exp_metric_averages.py`; a pasta `results/` não é versionada) embasaram a escolha do **`M2005_IDB`** (*Improved Double Parallel*, Pisani et al., IJCNN 2015) como classificador de produção da `projeto_si_ml_api`. O algoritmo combina:
 
 - **Submodelo deslizante:** fila FIFO de 50 amostras genuínas recentes, com média, mediana e desvio-padrão por dígrafo.
 - **Submodelo crescente incremental:** média e desvio-padrão online pelo algoritmo de Welford, em memória constante `O(1)` sobre todo o histórico genuíno.
-- **Escore final:** média aritmética dos dois submodelos, comparada a um limiar calibrado por usuário (`min` ou `min_non_outlier`, com teto `0.7`).
+- **Escore final:** média aritmética dos dois submodelos. Nos experimentos, o `AdaptiveM2005Alg` usa `threshold = 0.7` fixo; a ML API de produção aplica a calibração por usuário (`min`/`min_non_outlier`, com teto `0.7`).
+  - O `M2005Alg` experimental segue Pisani (2024) sem cap no threshold calibrado; o teto `0.7` é uma decisão da ML API.
 - **Treinamento One-Class:** apenas amostras genuínas; `IMPOSTOR` e `UNCERTAIN` não entram na adaptação.
 
 | Algoritmo | BACC CMU | FRR CMU | FAR CMU | BACC KeyRecs | FRR KeyRecs | FAR KeyRecs | BACC médio |
@@ -31,8 +32,9 @@ O `M2005_IDB` lidera em BACC médio (`0.8445`), G-mean (`0.8400`) e equilíbrio 
 * `lib/`: Módulo principal com a arquitetura dos experimentos.
   * `lib/datasets/`: Abstrações e carregadores dos datasets (CMU e KeyRecs).
   * `lib/estimators/`: Implementação de estimadores customizados compatíveis com a API Scikit-Learn:
-    * `m2005_alg.py`: Algoritmo Estatístico Melhorado de Magalhães et al. (2005) e calibração de limiar específico por usuário (`min` e `min-non-outlier`, Pisani, 2024).
+    * `m2005_alg.py`: Algoritmo Estatístico Melhorado de Magalhães et al. (2005) e calibração de limiar específico por usuário (`min` e `min_non_outlier`, Pisani, 2024).
     * `m2005_adaptive_alg.py`: M2005 adaptativo com *Double Parallel* (DB) e *Improved Double Parallel* (IDB com estatísticas online de Welford, Pisani et al., 2015).
+    * `m2005.py`: *shim* de compatibilidade que reexporta `M2005`, `M2005Alg` e `DigraphsMetrics`.
     * `hocquet_alg.py`: Classificador estatístico de Hocquet et al. (2007) / Mhenni et al. (2016) com decaimento exponencial de distância, duplo limiar e suporte a limiar variável.
     * `self_detector_alg.py`: Algoritmo de Seleção Positiva (*Self-Detector*, Pisani et al., 2015) com *Rank Transform*, similaridade de cosseno e estratégias *Sliding Window*, *Usage Control R* e *Usage Control 2*.
     * `scaled_manhattan_alg.py`: Classificador *Scaled Manhattan* com Desvio Absoluto Médio (MAD), campeão do benchmark de Killourhy & Maxion (2009).
@@ -46,8 +48,8 @@ O `M2005_IDB` lidera em BACC médio (`0.8445`), G-mean (`0.8400`) e equilíbrio 
   * `lib/utils.py`: Funções utilitárias, divisões de treino/teste e constantes globais.
 * `tests/`: Testes unitários dos estimadores e dos runners adaptativos (`pytest`).
 * `datasets/`: Contém os dados brutos e links para os benchmarks:
-  * `datasets/cmu/`: CMU Keystroke Benchmark Dataset (`DSL-StrongPasswordData.csv`).
-  * `datasets/keyrecs/`: KeyRecs Dataset (`fixed-text.csv`).
+  * `datasets/cmu/dataset.csv`: CMU Keystroke Benchmark Dataset (baixado de `DSL-StrongPasswordData.csv`).
+  * `datasets/keyrecs/dataset.csv`: KeyRecs Dataset (baixado de `fixed-text.csv`).
 * `references/`: PDFs dos artigos de referência usados na implementação dos estimadores e protocolos adaptativos.
 * `download_datasets.py`: Utilitário único para download automático dos datasets CMU e KeyRecs caso não estejam presentes localmente.
 
@@ -191,7 +193,7 @@ O projeto suporta dois datasets principais de dinâmica de digitação:
 ## Requisitos e Instalação
 
 ### Pré-requisitos
-* Python 3.12 (recomendado; os scripts são compatíveis com Python 3.10+)
+* Python 3.11+ (recomendado 3.12; o código usa `typing.Self`)
 * `pip` e, opcionalmente, um ambiente virtual (`venv` ou `uv`)
 
 ### Instalação das Dependências
