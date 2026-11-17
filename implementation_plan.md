@@ -10,8 +10,8 @@
 - **Endpoints da ML API:** `GET /api/health`, `POST /api/enrollment`, `POST /api/authenticate` e o endpoint interno `POST /api/models/rollback`.
 - **Contrato de entrada:** somente vetores posicionais `3n-2` (`H`, `DD`, `UD`); não há suporte a mapas `features`, `samples` ou `rawTimings`.
 - **Persistência:** a ML API lê `usuarios` e `amostras` e escreve apenas `modelos` + artefatos `.joblib`. Os artefatos ficam em `models_data/<user_id>/v<version>_<sha256>.joblib`, com metadados em `.joblib.meta.json` (hash, versão do scikit-learn, gatilho e estatísticas de treino).
-- **Limiar:** calibração por usuário com `min`/`min_non_outlier`, limitada ao teto `0.7` e recalculada a cada adaptação/retreinamento (`dynamic_threshold=True`).
-- **Retreinamento:** APScheduler em processo dedicado (`ml-scheduler`), com intervalo de `60` minutos e lock `select_for_update(skip_locked=True)`. Para `AdaptiveM2005Alg` da mesma variante, a adaptação é incremental (novas amostras + Welford + janela deslizante); nos demais casos o modelo é reconstruído. Amostras de `Cadastro` são sempre genuínas; amostras de `Login` só entram se forem `Genuine` e superarem a banda de confiança. `IMPOSTOR` e `UNCERTAIN` são descartadas.
+- **Limiar:** calibração por usuário com `min`/`min_non_outlier`, sem teto fixo, recalculada a cada adaptação/retreinamento (`dynamic_threshold=True`).
+- **Retreinamento:** APScheduler em processo dedicado (`ml-scheduler`), com intervalo de `60` minutos e lock `select_for_update(skip_locked=True)`. Para `AdaptiveM2005Alg` da mesma variante, a adaptação é incremental (novas amostras + Welford + janela deslizante); nos demais casos o modelo é reconstruído. Amostras de `Cadastro` são sempre genuínas; amostras de `Login` só entram se forem `Genuine`. Amostras classificadas como impostor são descartadas.
 - **Isolamento após troca de senha:** versões com `criado_em < data_mudanca_senha` são ignoradas e `activate_model_version` rejeita rollback para versões pré-troca. Em falha do treinamento, o backend chama `POST /api/models/rollback`.
 - **Qualidade:** Ruff para lint e `pytest` para os testes automatizados em `tests/`.
 

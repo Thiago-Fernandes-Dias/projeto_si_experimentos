@@ -12,9 +12,8 @@ Os resultados dos 52 experimentos consolidados localmente em `results/exp_metric
 
 - **Submodelo deslizante:** fila FIFO de 50 amostras genuínas recentes, com média, mediana e desvio-padrão por dígrafo.
 - **Submodelo crescente incremental:** média e desvio-padrão online pelo algoritmo de Welford, em memória constante `O(1)` sobre todo o histórico genuíno.
-- **Escore final:** média aritmética dos dois submodelos. Nos experimentos, o `AdaptiveM2005Alg` usa `threshold = 0.7` fixo; a ML API de produção aplica a calibração por usuário (`min`/`min_non_outlier`, com teto `0.7`).
-  - O `M2005Alg` experimental segue Pisani (2024) sem cap no threshold calibrado; o teto `0.7` é uma decisão da ML API.
-- **Treinamento One-Class:** apenas amostras genuínas; `IMPOSTOR` e `UNCERTAIN` não entram na adaptação.
+- **Escore final:** média aritmética dos dois submodelos. Nos experimentos, o `AdaptiveM2005Alg` usa `threshold = 0.7` fixo; a ML API de produção aplica a calibração por usuário (`min`/`min_non_outlier`) sem teto fixo, assim como o `M2005Alg` experimental.
+- **Treinamento One-Class:** apenas amostras genuínas; amostras classificadas como impostor não entram na adaptação.
 
 | Algoritmo | BACC CMU | FRR CMU | FAR CMU | BACC KeyRecs | FRR KeyRecs | FAR KeyRecs | BACC médio |
 |---|---|---|---|---|---|---|---|
